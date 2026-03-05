@@ -1,11 +1,11 @@
 from abc import ABC, abstractmethod
-from app.modules.orders.schemas.dto import CheckoutRequest, OrderRead
-from app.modules.orders.models.entity import OrderStatus
 
+from app.modules.orders.models.entity import OrderStatus
+from app.modules.orders.schemas.dto import CheckoutRequest, OrderRead
 
 class OrdersService(ABC):
     @abstractmethod
-    def checkout(self, payload: CheckoutRequest) -> OrderRead: ...
+    async def checkout(self, payload: CheckoutRequest) -> OrderRead: ...
 
     @abstractmethod
     def list_orders(self) -> list[OrderRead]: ...

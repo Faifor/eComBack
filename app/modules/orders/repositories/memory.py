@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from app.modules.orders.models.entity import Order, OrderItem, OrderStatus, OrderStatusHistoryEntry
+from app.modules.orders.models.entity import Order, OrderItem, OrderStatus, OrderStatusHistoryEntry, PaymentMethod
 from app.modules.orders.repositories.base import OrdersRepository
 
 
@@ -10,14 +10,26 @@ class InMemoryOrdersRepository(OrdersRepository):
         self._next_order_id = 1
         self._next_item_id = 1
 
-    def create_order(self, user_id: int, status: OrderStatus) -> Order:
-        order = Order(id=self._next_order_id, user_id=user_id, status=status, total_price=Decimal("0.00"))
+    def create_order(self, user_id: int, status: OrderStatus, payment_method: PaymentMethod) -> Order:
+        order = Order(
+            id=self._next_order_id,
+            user_id=user_id,
+            status=status,
+            payment_method=payment_method,
+            total_price=Decimal("0.00"),
+        )
         self._orders[order.id] = order
         self._next_order_id += 1
         return order
 
     def get_order(self, order_id: int) -> Order | None:
         return self._orders.get(order_id)
+    
+    def get_by_payment_id(self, payment_id: str) -> Order | None:
+        for order in self._orders.values():
+            if order.payment_id == payment_id:
+                return order
+        return None
 
     def add_order_item(self, order_id: int, sku: str, title: str, qty: int, unit_price, line_total, rule_trace) -> OrderItem:
         order = self._orders[order_id]

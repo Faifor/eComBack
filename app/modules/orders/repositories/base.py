@@ -1,13 +1,16 @@
 from abc import ABC, abstractmethod
-from app.modules.orders.models.entity import Order, OrderItem, OrderStatus, OrderStatusHistoryEntry
+from app.modules.orders.models.entity import Order, OrderItem, OrderStatus, OrderStatusHistoryEntry, PaymentMethod
 
 
 class OrdersRepository(ABC):
     @abstractmethod
-    def create_order(self, user_id: int, status: OrderStatus) -> Order: ...
+    def create_order(self, user_id: int, status: OrderStatus, payment_method: PaymentMethod) -> Order: ...
 
     @abstractmethod
     def get_order(self, order_id: int) -> Order | None: ...
+    
+    @abstractmethod
+    def get_by_payment_id(self, payment_id: str) -> Order | None: ...
 
     @abstractmethod
     def add_order_item(self, order_id: int, sku: str, title: str, qty: int, unit_price, line_total, rule_trace) -> OrderItem: ...
