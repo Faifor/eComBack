@@ -1,41 +1,38 @@
 from fastapi import APIRouter, HTTPException, status
-from app.modules.orders.repositories.memory import InMemoryOrdersRepository
-from app.modules.orders.schemas.dto import OrdersCreate, OrdersRead, OrdersUpdate
+
+from app.modules.orders.schemas.dto import CheckoutRequest, OrderRead, OrderStatusUpdate
 from app.modules.orders.services.service import DefaultOrdersService
+from app.modules.runtime import cart_repository, orders_repository
 
 
-router = APIRouter(prefix='/orders', tags=['orders'])
-_service = DefaultOrdersService(InMemoryOrdersRepository())
+router = APIRouter(prefix="/orders", tags=["orders"])
+_service = DefaultOrdersService(orders_repository, cart_repository)
 
 
-@router.get('/', response_model=list[OrdersRead])
-def list_items() -> list[OrdersRead]:
-    return _service.list()
+@router.post("/checkout", response_model=OrderRead, status_code=status.HTTP_201_CREATED)
+def checkout(payload: CheckoutRequest) -> OrderRead:
+    try:
+        return _service.checkout(payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
 
-@router.get('/{item_id}', response_model=OrdersRead)
-def get_item(item_id: int) -> OrdersRead:
-    item = _service.get(item_id)
-    if item is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='orders item not found')
-    return item
+@router.get("/", response_model=list[OrderRead])
+def list_orders() -> list[OrderRead]:
+    return _service.list_orders()
 
 
-@router.post('/', response_model=OrdersRead, status_code=status.HTTP_201_CREATED)
-def create_item(payload: OrdersCreate) -> OrdersRead:
-    return _service.create(payload)
+@router.get("/{order_id}", response_model=OrderRead)
+def get_order(order_id: int) -> OrderRead:
+    order = _service.get_order(order_id)
+    if order is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="order not found")
+    return order
 
 
-@router.put('/{item_id}', response_model=OrdersRead)
-def update_item(item_id: int, payload: OrdersUpdate) -> OrdersRead:
-    item = _service.update(item_id, payload)
-    if item is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='orders item not found')
-    return item
-
-
-@router.delete('/{item_id}', status_code=status.HTTP_204_NO_CONTENT)
-def delete_item(item_id: int) -> None:
-    deleted = _service.delete(item_id)
-    if not deleted:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='orders item not found')
+@router.post("/{order_id}/status", response_model=OrderRead)
+def update_order_status(order_id: int, payload: OrderStatusUpdate) -> OrderRead:
+    order = _service.transition_status(order_id, payload.status)
+    if order is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="order not found")
+    return order

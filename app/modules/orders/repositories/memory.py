@@ -1,30 +1,48 @@
-from app.modules.orders.models.entity import OrdersEntity
+from decimal import Decimal
+
+from app.modules.orders.models.entity import Order, OrderItem, OrderStatus, OrderStatusHistoryEntry
 from app.modules.orders.repositories.base import OrdersRepository
 
 
 class InMemoryOrdersRepository(OrdersRepository):
     def __init__(self) -> None:
-        self._items: dict[int, OrdersEntity] = {}
-        self._next_id = 1
+        self._orders: dict[int, Order] = {}
+        self._next_order_id = 1
+        self._next_item_id = 1
 
-    def list(self) -> list[OrdersEntity]:
-        return list(self._items.values())
+    def create_order(self, user_id: int, status: OrderStatus) -> Order:
+        order = Order(id=self._next_order_id, user_id=user_id, status=status, total_price=Decimal("0.00"))
+        self._orders[order.id] = order
+        self._next_order_id += 1
+        return order
 
-    def get(self, item_id: int) -> OrdersEntity | None:
-        return self._items.get(item_id)
+    def get_order(self, order_id: int) -> Order | None:
+        return self._orders.get(order_id)
 
-    def create(self, name: str) -> OrdersEntity:
-        item = OrdersEntity(id=self._next_id, name=name)
-        self._items[item.id] = item
-        self._next_id += 1
+    def add_order_item(self, order_id: int, sku: str, title: str, qty: int, unit_price, line_total, rule_trace) -> OrderItem:
+        order = self._orders[order_id]
+        item = OrderItem(
+            id=self._next_item_id,
+            order_id=order_id,
+            sku=sku,
+            title=title,
+            qty=qty,
+            unit_price=unit_price,
+            line_total=line_total,
+            rule_trace=rule_trace,
+        )
+        self._next_item_id += 1
+        order.items.append(item)
+        order.total_price += line_total
         return item
 
-    def update(self, item_id: int, name: str) -> OrdersEntity | None:
-        item = self._items.get(item_id)
-        if item is None:
+    def update_status(self, order_id: int, status: OrderStatus, history: OrderStatusHistoryEntry) -> Order | None:
+        order = self._orders.get(order_id)
+        if order is None:
             return None
-        item.name = name
-        return item
+        order.status = status
+        order.status_history.append(history)
+        return order
 
-    def delete(self, item_id: int) -> bool:
-        return self._items.pop(item_id, None) is not None
+    def list_orders(self) -> list[Order]:
+        return list(self._orders.values())

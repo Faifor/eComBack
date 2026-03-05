@@ -1,41 +1,30 @@
 from fastapi import APIRouter, HTTPException, status
-from app.modules.pricing.repositories.memory import InMemoryPricingRepository
-from app.modules.pricing.schemas.dto import PricingCreate, PricingRead, PricingUpdate
-from app.modules.pricing.services.service import DefaultPricingService
+
+from app.modules.pricing.schemas.dto import (
+    PriceCalculateRequest,
+    PriceCalculateResponse,
+    PricingRuleCreate,
+    PricingRuleRead,
+)
+from app.modules.runtime import pricing_service
 
 
-router = APIRouter(prefix='/pricing', tags=['pricing'])
-_service = DefaultPricingService(InMemoryPricingRepository())
+router = APIRouter(prefix="/pricing", tags=["pricing"])
 
 
-@router.get('/', response_model=list[PricingRead])
-def list_items() -> list[PricingRead]:
-    return _service.list()
+@router.post("/rules", response_model=PricingRuleRead, status_code=status.HTTP_201_CREATED)
+def create_rule(payload: PricingRuleCreate) -> PricingRuleRead:
+    return pricing_service.create_rule(payload)
 
 
-@router.get('/{item_id}', response_model=PricingRead)
-def get_item(item_id: int) -> PricingRead:
-    item = _service.get(item_id)
-    if item is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='pricing item not found')
-    return item
+@router.get("/rules", response_model=list[PricingRuleRead])
+def list_rules() -> list[PricingRuleRead]:
+    return pricing_service.list_rules()
 
 
-@router.post('/', response_model=PricingRead, status_code=status.HTTP_201_CREATED)
-def create_item(payload: PricingCreate) -> PricingRead:
-    return _service.create(payload)
-
-
-@router.put('/{item_id}', response_model=PricingRead)
-def update_item(item_id: int, payload: PricingUpdate) -> PricingRead:
-    item = _service.update(item_id, payload)
-    if item is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='pricing item not found')
-    return item
-
-
-@router.delete('/{item_id}', status_code=status.HTTP_204_NO_CONTENT)
-def delete_item(item_id: int) -> None:
-    deleted = _service.delete(item_id)
-    if not deleted:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='pricing item not found')
+@router.post("/calculate", response_model=PriceCalculateResponse)
+def calculate(payload: PriceCalculateRequest) -> PriceCalculateResponse:
+    try:
+        return pricing_service.calculate_price(payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc

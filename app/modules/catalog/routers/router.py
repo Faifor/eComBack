@@ -1,41 +1,69 @@
 from fastapi import APIRouter, HTTPException, status
-from app.modules.catalog.repositories.memory import InMemoryCatalogRepository
-from app.modules.catalog.schemas.dto import CatalogCreate, CatalogRead, CatalogUpdate
+from app.modules.catalog.schemas.dto import (
+    CategoryCreate,
+    CategoryRead,
+    InventoryRead,
+    InventorySet,
+    ProductAttributeCreate,
+    ProductAttributeRead,
+    ProductCreate,
+    ProductRead,
+    ProductVariantCreate,
+    ProductVariantRead,
+)
 from app.modules.catalog.services.service import DefaultCatalogService
 
-
-router = APIRouter(prefix='/catalog', tags=['catalog'])
-_service = DefaultCatalogService(InMemoryCatalogRepository())
+from app.modules.runtime import catalog_repository
 
 
-@router.get('/', response_model=list[CatalogRead])
-def list_items() -> list[CatalogRead]:
-    return _service.list()
+router = APIRouter(prefix="/catalog", tags=["catalog"])
+_service = DefaultCatalogService(catalog_repository)
 
 
-@router.get('/{item_id}', response_model=CatalogRead)
-def get_item(item_id: int) -> CatalogRead:
-    item = _service.get(item_id)
-    if item is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='catalog item not found')
-    return item
+@router.post("/categories", response_model=CategoryRead, status_code=status.HTTP_201_CREATED)
+def create_category(payload: CategoryCreate) -> CategoryRead:
+    try:
+        return _service.create_category(payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+@router.get("/categories", response_model=list[CategoryRead])
+def list_categories() -> list[CategoryRead]:
+    return _service.list_categories()
 
 
-@router.post('/', response_model=CatalogRead, status_code=status.HTTP_201_CREATED)
-def create_item(payload: CatalogCreate) -> CatalogRead:
-    return _service.create(payload)
+@router.post("/products", response_model=ProductRead, status_code=status.HTTP_201_CREATED)
+def create_product(payload: ProductCreate) -> ProductRead:
+    try:
+        return _service.create_product(payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
 
-@router.put('/{item_id}', response_model=CatalogRead)
-def update_item(item_id: int, payload: CatalogUpdate) -> CatalogRead:
-    item = _service.update(item_id, payload)
-    if item is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='catalog item not found')
-    return item
+@router.get("/products", response_model=list[ProductRead])
+def list_products() -> list[ProductRead]:
+    return _service.list_products()
 
 
-@router.delete('/{item_id}', status_code=status.HTTP_204_NO_CONTENT)
-def delete_item(item_id: int) -> None:
-    deleted = _service.delete(item_id)
-    if not deleted:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='catalog item not found')
+@router.post("/variants", response_model=ProductVariantRead, status_code=status.HTTP_201_CREATED)
+def create_variant(payload: ProductVariantCreate) -> ProductVariantRead:
+    try:
+        return _service.create_variant(payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@router.put("/inventory", response_model=InventoryRead)
+def set_inventory(payload: InventorySet) -> InventoryRead:
+    try:
+        return _service.set_inventory(payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@router.post("/attributes", response_model=ProductAttributeRead, status_code=status.HTTP_201_CREATED)
+def add_attribute(payload: ProductAttributeCreate) -> ProductAttributeRead:
+    try:
+        return _service.add_attribute(payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
