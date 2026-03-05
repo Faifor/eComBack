@@ -1,10 +1,12 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from app.modules.admin.repositories.memory import InMemoryAdminRepository
 from app.modules.admin.schemas.dto import AdminCreate, AdminRead, AdminUpdate
 from app.modules.admin.services.service import DefaultAdminService
+from app.modules.auth.dependencies import require_role
+from app.modules.auth.models.entity import UserRole
 
 
-router = APIRouter(prefix='/admin', tags=['admin'])
+router = APIRouter(prefix='/admin', tags=['admin'], dependencies=[Depends(require_role(UserRole.ADMIN))])
 _service = DefaultAdminService(InMemoryAdminRepository())
 
 

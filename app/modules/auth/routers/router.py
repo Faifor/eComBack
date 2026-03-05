@@ -1,41 +1,44 @@
-from fastapi import APIRouter, HTTPException, status
-from app.modules.auth.repositories.memory import InMemoryAuthRepository
-from app.modules.auth.schemas.dto import AuthCreate, AuthRead, AuthUpdate
-from app.modules.auth.services.service import DefaultAuthService
+from fastapi import APIRouter, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.db.session import get_db
+from app.modules.auth.dependencies import auth_rate_limit, get_current_user
+from app.modules.auth.models.entity import User
+from app.modules.auth.schemas.dto import AuthResponse, LoginRequest, RefreshRequest, RegisterRequest, UserRead
+from app.modules.auth.services.service import DatabaseAuthService
+
+router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-router = APIRouter(prefix='/auth', tags=['auth'])
-_service = DefaultAuthService(InMemoryAuthRepository())
+@router.post("/register", response_model=AuthResponse)
+async def register(
+    payload: RegisterRequest,
+    db: AsyncSession = Depends(get_db),
+    _: None = Depends(auth_rate_limit("register")),
+) -> AuthResponse:
+    return await DatabaseAuthService(db).register(payload)
 
 
-@router.get('/', response_model=list[AuthRead])
-def list_items() -> list[AuthRead]:
-    return _service.list()
+@router.post("/login", response_model=AuthResponse)
+async def login(
+    payload: LoginRequest,
+    db: AsyncSession = Depends(get_db),
+    _: None = Depends(auth_rate_limit("login")),
+) -> AuthResponse:
+    return await DatabaseAuthService(db).login(payload)
 
 
-@router.get('/{item_id}', response_model=AuthRead)
-def get_item(item_id: int) -> AuthRead:
-    item = _service.get(item_id)
-    if item is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='auth item not found')
-    return item
+@router.post("/refresh", response_model=AuthResponse)
+async def refresh(payload: RefreshRequest, db: AsyncSession = Depends(get_db)) -> AuthResponse:
+    return await DatabaseAuthService(db).refresh(payload.refresh_token)
 
 
-@router.post('/', response_model=AuthRead, status_code=status.HTTP_201_CREATED)
-def create_item(payload: AuthCreate) -> AuthRead:
-    return _service.create(payload)
-
-
-@router.put('/{item_id}', response_model=AuthRead)
-def update_item(item_id: int, payload: AuthUpdate) -> AuthRead:
-    item = _service.update(item_id, payload)
-    if item is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='auth item not found')
-    return item
-
-
-@router.delete('/{item_id}', status_code=status.HTTP_204_NO_CONTENT)
-def delete_item(item_id: int) -> None:
-    deleted = _service.delete(item_id)
-    if not deleted:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='auth item not found')
+@router.get("/me", response_model=UserRead)
+async def me(current_user: User = Depends(get_current_user)) -> UserRead:
+    return UserRead(
+        id=current_user.id,
+        email=current_user.email,
+        full_name=current_user.full_name,
+        role=current_user.role,
+        created_at=current_user.created_at,
+    )
