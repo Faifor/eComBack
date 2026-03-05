@@ -1,0 +1,3 @@
+sku,external_key,product_name,category_name,price,stock,attributes
+TSHIRT-BLK-M,ext-1001,Black T-Shirt,Fashion,29.99,120,"{""color"": ""black"", ""size"": ""M""}"
+SNKR-WHT-42,ext-1002,White Sneakers,Shoes,89.50,45,"{""color"": ""white"", ""size"": ""42""}"
