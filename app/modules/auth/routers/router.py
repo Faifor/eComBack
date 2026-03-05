@@ -3,8 +3,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
 from app.modules.auth.dependencies import auth_rate_limit, get_current_user
-from app.modules.auth.models.entity import User
-from app.modules.auth.schemas.dto import AuthResponse, LoginRequest, RefreshRequest, RegisterRequest, UserRead
+from app.modules.auth.repositories import UserProfile
+from app.modules.auth.schemas.dto import (
+    AuthResponse,
+    LoginRequest,
+    ProfileUpdateRequest,
+    RefreshRequest,
+    RegisterRequest,
+    UserRead,
+)
 from app.modules.auth.services.service import DatabaseAuthService
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -34,11 +41,21 @@ async def refresh(payload: RefreshRequest, db: AsyncSession = Depends(get_db)) -
 
 
 @router.get("/me", response_model=UserRead)
-async def me(current_user: User = Depends(get_current_user)) -> UserRead:
+async def me(current_user: UserProfile = Depends(get_current_user)) -> UserRead:
     return UserRead(
         id=current_user.id,
         email=current_user.email,
         full_name=current_user.full_name,
+        phone=current_user.phone,
         role=current_user.role,
         created_at=current_user.created_at,
     )
+
+
+@router.patch("/profile", response_model=UserRead)
+async def update_profile(
+    payload: ProfileUpdateRequest,
+    current_user: UserProfile = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> UserRead:
+    return await DatabaseAuthService(db).update_profile(current_user.id, payload)

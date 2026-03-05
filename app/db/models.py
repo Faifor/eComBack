@@ -7,7 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.db.base import TimestampedBase
 
 
-from app.modules.auth.models.entity import RefreshSession, User, UserRole
+from app.modules.auth.models.entity import ProfileChangeLog, RefreshSession, User, UserRole
 
 
 class CatalogItem(TimestampedBase):
@@ -37,4 +37,4 @@ class Payment(TimestampedBase):
     provider: Mapped[str] = mapped_column(String(100), nullable=False)
 
 
-__all__ = ["User", "UserRole", "RefreshSession", "CatalogItem", "Order", "Payment"]
+__all__ = ["User", "UserRole", "RefreshSession", "ProfileChangeLog", "CatalogItem", "Order", "Payment"]

@@ -5,12 +5,18 @@ from datetime import UTC, datetime
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from redis.asyncio import Redis
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import AUTH_RATE_LIMIT_MAX_ATTEMPTS, AUTH_RATE_LIMIT_WINDOW_SECONDS, REDIS_URL
+from app.core.config import (
+    AUTH_RATE_LIMIT_MAX_ATTEMPTS,
+    AUTH_RATE_LIMIT_WINDOW_SECONDS,
+    PERSONAL_DATA_ENC_KEY,
+    REDIS_URL,
+)
+from app.core.security import PersonalDataEncryptionService
 from app.db.session import get_db
-from app.modules.auth.models.entity import User, UserRole
+from app.modules.auth.models.entity import UserRole
+from app.modules.auth.repositories import UserProfile, UserRepository
 from app.modules.auth.services.jwt import decode_access_token
 
 security = HTTPBearer(auto_error=True)
@@ -27,7 +33,7 @@ async def get_redis() -> Redis:
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: AsyncSession = Depends(get_db),
-) -> User:
+) -> UserProfile:
     unauthorized = HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid authentication")
     try:
         payload = decode_access_token(credentials.credentials)
@@ -37,15 +43,15 @@ async def get_current_user(
     if payload.get("type") != "access" or payload.get("sub") is None:
         raise unauthorized
 
-    result = await db.execute(select(User).where(User.id == int(payload["sub"])))
-    user = result.scalar_one_or_none()
+    repository = UserRepository(db, PersonalDataEncryptionService(PERSONAL_DATA_ENC_KEY))
+    user = await repository.get_by_id(int(payload["sub"]))
     if user is None:
         raise unauthorized
     return user
 
 
 def require_role(*roles: UserRole):
-    async def _dependency(current_user: User = Depends(get_current_user)) -> User:
+    async def _dependency(current_user: UserProfile = Depends(get_current_user)) -> UserProfile:
         if current_user.role not in roles:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role")
         return current_user

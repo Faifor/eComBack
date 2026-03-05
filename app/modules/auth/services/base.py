@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 
-from app.modules.auth.models.entity import User
-from app.modules.auth.schemas.dto import AuthResponse, LoginRequest, RegisterRequest
+from app.modules.auth.repositories import UserProfile
+from app.modules.auth.schemas.dto import AuthResponse, LoginRequest, ProfileUpdateRequest, RegisterRequest, UserRead
 
 class AuthService(ABC):
     @abstractmethod
@@ -14,4 +14,7 @@ class AuthService(ABC):
     async def refresh(self, refresh_token: str) -> AuthResponse: ...
 
     @abstractmethod
-    async def me(self, user_id: int) -> User | None: ...
+    async def me(self, user_id: int) -> UserProfile | None: ...
+
+    @abstractmethod
+    async def update_profile(self, user_id: int, payload: ProfileUpdateRequest) -> UserRead: ...
