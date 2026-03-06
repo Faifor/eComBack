@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -77,4 +77,4 @@ def auth_rate_limit(action: str):
 
 
 async def utcnow() -> datetime:
-    return datetime.now(UTC)
+    return datetime.now(timezone.utc)

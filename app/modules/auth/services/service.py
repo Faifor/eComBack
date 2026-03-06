@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timezone, timedelta
 
 from fastapi import HTTPException, status
 from sqlalchemy import select
@@ -77,7 +77,7 @@ class DatabaseAuthService(AuthService):
         if session is None or session.is_revoked:
             raise unauthorized
 
-        now = datetime.now(UTC)
+        now = datetime.now(timezone.utc)
         if session.expires_at <= now:
             raise unauthorized
 
@@ -113,7 +113,7 @@ class DatabaseAuthService(AuthService):
         return _to_user_read(user)
 
     async def _issue_tokens(self, user: UserProfile, rotated_from_id: int | None = None) -> TokenPair:
-        session_expires = datetime.now(UTC) + timedelta(days=JWT_REFRESH_EXPIRE_DAYS)
+        session_expires = datetime.now(timezone.utc) + timedelta(days=JWT_REFRESH_EXPIRE_DAYS)
         session = RefreshSession(
             user_id=user.id,
             token_hash="pending",

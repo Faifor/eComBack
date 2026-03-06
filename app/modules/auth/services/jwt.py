@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from uuid import uuid4
 
 import jwt
@@ -9,7 +9,7 @@ from app.core.config import JWT_ACCESS_EXPIRE_MINUTES, JWT_REFRESH_EXPIRE_DAYS, 
 
 
 def _build_payload(*, subject: str, token_type: str, expires_delta: timedelta, extra: dict | None = None) -> dict:
-    now = datetime.now(UTC)
+    now = datetime.now(timezone.utc)
     payload = {
         "sub": subject,
         "type": token_type,

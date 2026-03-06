@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from hashlib import sha256
 
 from sqlalchemy import select
@@ -94,7 +94,7 @@ class UserRepository:
                 ProfileChangeLog(
                     user_id=user_id,
                     changed_by=changed_by,
-                    changed_at=datetime.now(UTC),
+                    changed_at=datetime.now(timezone.utc),
                     diff=diff,
                 )
             )

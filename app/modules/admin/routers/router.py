@@ -6,7 +6,7 @@ import json
 import zipfile
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from xml.etree import ElementTree
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
@@ -332,7 +332,7 @@ def create_order(payload: OrderCreate) -> OrderRead:
         quantity=payload.quantity,
         unit_price=payload.unit_price,
         status=payload.status,
-        created_at=datetime.now(UTC),
+        created_at=datetime.now(timezone.utc),
     )
     _store.orders[item.id] = item
     return item
