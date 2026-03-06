@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Response, status
 from app.modules.ai.repositories.memory import InMemoryAiRepository
 from app.modules.ai.schemas.dto import AiCreate, AiRead, AiUpdate
 from app.modules.ai.services.service import DefaultAiService
@@ -34,7 +34,7 @@ def update_item(item_id: int, payload: AiUpdate) -> AiRead:
     return item
 
 
-@router.delete('/{item_id}', status_code=status.HTTP_204_NO_CONTENT)
+@router.delete('/{item_id}', status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
 def delete_item(item_id: int) -> None:
     deleted = _service.delete(item_id)
     if not deleted:

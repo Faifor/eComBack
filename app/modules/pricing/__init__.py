@@ -1,1 +1,1 @@
-from .routers.router import router
+"""Pricing module package."""
