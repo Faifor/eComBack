@@ -112,7 +112,7 @@ def update_category(item_id: int, payload: CategoryUpdate) -> CategoryRead:
     return updated
 
 
-@router.delete('/categories/{item_id}', status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
+@router.delete('/categories/{item_id}', status_code=status.HTTP_204_NO_CONTENT, response_class=Response, response_model=None)
 def delete_category(item_id: int) -> None:
     if _store.categories.pop(item_id, None) is None:
         raise HTTPException(status_code=404, detail='category not found')
@@ -167,7 +167,7 @@ def update_product(item_id: int, payload: ProductUpdate) -> ProductRead:
     return updated
 
 
-@router.delete('/products/{item_id}', status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
+@router.delete('/products/{item_id}', status_code=status.HTTP_204_NO_CONTENT, response_class=Response, response_model=None)
 def delete_product(item_id: int) -> None:
     if _store.products.pop(item_id, None) is None:
         raise HTTPException(status_code=404, detail='product not found')
@@ -217,7 +217,7 @@ def update_sku(item_id: int, payload: SKUUpdate) -> SKURead:
     return updated
 
 
-@router.delete('/skus/{item_id}', status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
+@router.delete('/skus/{item_id}', status_code=status.HTTP_204_NO_CONTENT, response_class=Response, response_model=None)
 def delete_sku(item_id: int) -> None:
     if _store.skus.pop(item_id, None) is None:
         raise HTTPException(status_code=404, detail='sku not found')
@@ -261,7 +261,7 @@ def update_inventory(item_id: int, payload: InventoryUpdate) -> InventoryRead:
     return updated
 
 
-@router.delete('/inventory/{item_id}', status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
+@router.delete('/inventory/{item_id}', status_code=status.HTTP_204_NO_CONTENT, response_class=Response, response_model=None)
 def delete_inventory(item_id: int) -> None:
     if _store.inventories.pop(item_id, None) is None:
         raise HTTPException(status_code=404, detail='inventory not found')
@@ -309,7 +309,7 @@ def update_pricing_rule(item_id: int, payload: PricingRuleUpdate) -> PricingRule
     return updated
 
 
-@router.delete('/pricing-rules/{item_id}', status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
+@router.delete('/pricing-rules/{item_id}', status_code=status.HTTP_204_NO_CONTENT, response_class=Response, response_model=None)
 def delete_pricing_rule(item_id: int) -> None:
     if _store.pricing_rules.pop(item_id, None) is None:
         raise HTTPException(status_code=404, detail='pricing rule not found')
@@ -369,7 +369,7 @@ def update_order(item_id: int, payload: OrderUpdate) -> OrderRead:
     return updated
 
 
-@router.delete('/orders/{item_id}', status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
+@router.delete('/orders/{item_id}', status_code=status.HTTP_204_NO_CONTENT, response_class=Response, response_model=None)
 def delete_order(item_id: int) -> None:
     if _store.orders.pop(item_id, None) is None:
         raise HTTPException(status_code=404, detail='order not found')
@@ -412,7 +412,7 @@ def update_user(item_id: int, payload: AdminUserUpdate) -> AdminUserRead:
     return updated
 
 
-@router.delete('/users/{item_id}', status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
+@router.delete('/users/{item_id}', status_code=status.HTTP_204_NO_CONTENT, response_class=Response, response_model=None)
 def delete_user(item_id: int) -> None:
     if _store.users.pop(item_id, None) is None:
         raise HTTPException(status_code=404, detail='user not found')
