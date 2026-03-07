@@ -1,7 +1,13 @@
 from __future__ import annotations
 
 from datetime import datetime
-from enum import StrEnum
+try:
+    from enum import StrEnum
+except ImportError:  # pragma: no cover
+    from enum import Enum
+
+    class StrEnum(str, Enum):
+        pass
 
 
 from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, JSON, String
