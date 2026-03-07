@@ -1,12 +1,18 @@
 from __future__ import annotations
-
+from datetime import datetime
 from decimal import Decimal
+from sqlalchemy import and_, select
 
-from sqlalchemy import select
-
-from app.db.commerce_models import CommerceAttribute, CommerceCategory, CommerceInventory, CommerceProduct, CommerceVariant
+from app.db.commerce_models import (
+    CommerceAttribute,
+    CommerceCategory,
+    CommerceInventory,
+    CommerceInventoryMovement,
+    CommerceProduct,
+    CommerceVariant,
+)
 from app.db import sync_session
-from app.modules.catalog.models.entity import Category, Inventory, Product, ProductAttribute, ProductVariant
+from app.modules.catalog.models.entity import Category, Inventory, InventoryMovement, InventoryMovementType, Product, ProductAttribute, ProductVariant
 from app.modules.catalog.repositories.base import CatalogRepository
 
 
@@ -23,9 +29,22 @@ class SQLAlchemyCatalogRepository(CatalogRepository):
     def _variant(row: CommerceVariant) -> ProductVariant:
         return ProductVariant(id=row.id, product_id=row.product_id, sku=row.sku, title=row.title, base_price=row.base_price)
 
+    def _inventory(self, row: CommerceInventory) -> Inventory:
+        on_hand, reserved, available = self.inventory_summary(row.variant_id)
+        return Inventory(id=row.id, variant_id=row.variant_id, qty=row.qty, on_hand=on_hand, reserved=reserved, available=available)
+
     @staticmethod
-    def _inventory(row: CommerceInventory) -> Inventory:
-        return Inventory(id=row.id, variant_id=row.variant_id, qty=row.qty)
+    def _movement(row: CommerceInventoryMovement) -> InventoryMovement:
+        return InventoryMovement(
+            id=row.id,
+            sku_id=row.sku_id,
+            movement_type=InventoryMovementType(row.movement_type),
+            qty=row.qty,
+            reason=row.reason,
+            source_type=row.source_type,
+            source_id=row.source_id,
+            created_at=row.created_at,
+        )
 
     def create_category(self, name: str, parent_id: int | None) -> Category:
         with sync_session.SyncSessionLocal() as db:
@@ -82,11 +101,24 @@ class SQLAlchemyCatalogRepository(CatalogRepository):
     def set_inventory(self, variant_id: int, qty: int) -> Inventory:
         with sync_session.SyncSessionLocal() as db:
             row = db.scalar(select(CommerceInventory).where(CommerceInventory.variant_id == variant_id))
+            previous_qty = row.qty if row is not None else 0
             if row is None:
                 row = CommerceInventory(variant_id=variant_id, qty=qty)
                 db.add(row)
             else:
                 row.qty = qty
+                delta = qty - previous_qty
+            if delta != 0:
+                db.add(
+                    CommerceInventoryMovement(
+                        sku_id=variant_id,
+                        movement_type=(InventoryMovementType.receipt if delta > 0 else InventoryMovementType.adjustment).value,
+                        qty=delta,
+                        reason="inventory_sync",
+                        source_type="inventory",
+                        source_id=str(variant_id),
+                    )
+                )
             db.commit()
             db.refresh(row)
             return self._inventory(row)
@@ -108,3 +140,64 @@ class SQLAlchemyCatalogRepository(CatalogRepository):
         with sync_session.SyncSessionLocal() as db:
             rows = db.scalars(select(CommerceAttribute).where(CommerceAttribute.product_id == product_id)).all()
             return [ProductAttribute(id=r.id, product_id=r.product_id, name=r.name, value=r.value) for r in rows]
+
+    def add_inventory_movement(
+        self,
+        sku_id: int,
+        movement_type: InventoryMovementType,
+        qty: int,
+        reason: str | None = None,
+        source_type: str | None = None,
+        source_id: str | None = None,
+    ) -> InventoryMovement:
+        with sync_session.SyncSessionLocal() as db:
+            row = CommerceInventoryMovement(
+                sku_id=sku_id,
+                movement_type=movement_type.value,
+                qty=qty,
+                reason=reason,
+                source_type=source_type,
+                source_id=source_id,
+            )
+            db.add(row)
+            db.commit()
+            db.refresh(row)
+            return self._movement(row)
+
+    def list_inventory_movements(
+        self,
+        sku_id: int,
+        created_from: datetime | None = None,
+        created_to: datetime | None = None,
+    ) -> list[InventoryMovement]:
+        with sync_session.SyncSessionLocal() as db:
+            query = select(CommerceInventoryMovement).where(CommerceInventoryMovement.sku_id == sku_id)
+            conditions = []
+            if created_from is not None:
+                conditions.append(CommerceInventoryMovement.created_at >= created_from)
+            if created_to is not None:
+                conditions.append(CommerceInventoryMovement.created_at <= created_to)
+            if conditions:
+                query = query.where(and_(*conditions))
+            query = query.order_by(CommerceInventoryMovement.created_at.desc())
+            rows = db.scalars(query).all()
+            return [self._movement(row) for row in rows]
+
+    def inventory_summary(self, sku_id: int) -> tuple[int, int, int]:
+        movements = self.list_inventory_movements(sku_id)
+        on_hand = 0
+        reserved = 0
+        for movement in movements:
+            if movement.movement_type in {InventoryMovementType.receipt, InventoryMovementType.returned}:
+                on_hand += movement.qty
+            elif movement.movement_type == InventoryMovementType.sale:
+                on_hand -= movement.qty
+            elif movement.movement_type == InventoryMovementType.adjustment:
+                on_hand += movement.qty
+            elif movement.movement_type == InventoryMovementType.reserve:
+                reserved += movement.qty
+            elif movement.movement_type == InventoryMovementType.release:
+                reserved -= movement.qty
+        if reserved < 0:
+            reserved = 0
+        return on_hand, reserved, on_hand - reserved

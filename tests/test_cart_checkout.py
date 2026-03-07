@@ -38,7 +38,7 @@ def test_cart_checkout_cod_flow() -> None:
     cart = cart_service.create_cart(CartCreate(user_id=7))
     cart = cart_service.upsert_item(cart.id, CartItemUpsert(variant_id=variant.id, qty=2, promo_code=None))
 
-    orders_service = DefaultOrdersService(orders_repo, cart_repo, DummyYooKassaClient())
+    orders_service = DefaultOrdersService(orders_repo, cart_repo, DummyYooKassaClient(), catalog)
     order = asyncio.run(orders_service.checkout(CheckoutRequest(cart_id=cart.id, payment_method=PaymentMethod.cod)))
 
     assert order.status.value == "awaiting_cod_payment"

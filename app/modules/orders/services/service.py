@@ -1,6 +1,8 @@
 import uuid
 
 from app.modules.cart.repositories.base import CartRepository
+from app.modules.catalog.repositories.base import CatalogRepository
+from app.modules.catalog.models.entity import InventoryMovementType
 from app.modules.orders.models.entity import OrderStatus, OrderStatusHistoryEntry, PaymentMethod
 from app.modules.orders.repositories.base import OrdersRepository
 from app.modules.orders.schemas.dto import CheckoutRequest, OrderItemRead, OrderRead, OrderStatusHistoryRead
@@ -9,10 +11,17 @@ from app.modules.payments.services.yookassa_client import YooKassaClient
 
 
 class DefaultOrdersService(OrdersService):
-    def __init__(self, repository: OrdersRepository, cart_repository: CartRepository, yookassa_client: YooKassaClient) -> None:
+    def __init__(
+        self,
+        repository: OrdersRepository,
+        cart_repository: CartRepository,
+        yookassa_client: YooKassaClient,
+        catalog_repository: CatalogRepository,
+    ) -> None:
         self._repository = repository
         self._cart_repository = cart_repository
         self._yookassa_client = yookassa_client
+        self._catalog_repository = catalog_repository
 
     async def checkout(self, payload: CheckoutRequest) -> OrderRead:
         cart = self._cart_repository.get_cart(payload.cart_id)
@@ -20,6 +29,11 @@ class DefaultOrdersService(OrdersService):
             raise ValueError("cart not found")
         if not cart.items:
             raise ValueError("cart is empty")
+        
+        for item in cart.items:
+            inventory = self._catalog_repository.get_inventory(item.variant_id)
+            if inventory is None or inventory.available < item.qty:
+                raise ValueError(f"insufficient available inventory for {item.sku}")
 
         initial_status = OrderStatus.awaiting_cod_payment if payload.payment_method == PaymentMethod.cod else OrderStatus.created
         order = self._repository.create_order(user_id=cart.user_id, status=initial_status, payment_method=payload.payment_method)
@@ -34,6 +48,15 @@ class DefaultOrdersService(OrdersService):
                 unit_price=item.unit_price,
                 line_total=item.total_price,
                 rule_trace=item.rule_trace,
+            )
+
+            self._catalog_repository.add_inventory_movement(
+                sku_id=item.variant_id,
+                movement_type=InventoryMovementType.reserve,
+                qty=item.qty,
+                reason="checkout_reserve",
+                source_type="order",
+                source_id=str(order.id),
             )
 
         if payload.payment_method == PaymentMethod.yookassa:
@@ -71,6 +94,7 @@ class DefaultOrdersService(OrdersService):
             return None
         if order.payment_method != PaymentMethod.cod:
             raise ValueError("order payment method is not COD")
+        self._convert_reserve_to_sale(order)
         order.payment_status = "succeeded"
         history = OrderStatusHistoryEntry(from_status=order.status, to_status=OrderStatus.paid)
         updated = self._repository.update_status(order_id, OrderStatus.paid, history)
@@ -83,8 +107,10 @@ class DefaultOrdersService(OrdersService):
 
         order.payment_status = payment_status
         if payment_status == "succeeded":
+            self._convert_reserve_to_sale(order)
             new_status = OrderStatus.paid
         elif payment_status == "canceled":
+            self._release_reserve(order)
             new_status = OrderStatus.cancelled
         else:
             new_status = OrderStatus.payment_failed
@@ -92,6 +118,42 @@ class DefaultOrdersService(OrdersService):
         history = OrderStatusHistoryEntry(from_status=order.status, to_status=new_status)
         updated = self._repository.update_status(order.id, new_status, history)
         return self._to_read(updated) if updated else None
+    
+    def _convert_reserve_to_sale(self, order) -> None:
+        for item in order.items:
+            variant = self._catalog_repository.get_variant_by_sku(item.sku)
+            if variant is None:
+                continue
+            self._catalog_repository.add_inventory_movement(
+                sku_id=variant.id,
+                movement_type=InventoryMovementType.sale,
+                qty=item.qty,
+                reason="payment_succeeded_sale",
+                source_type="order",
+                source_id=str(order.id),
+            )
+            self._catalog_repository.add_inventory_movement(
+                sku_id=variant.id,
+                movement_type=InventoryMovementType.release,
+                qty=item.qty,
+                reason="payment_succeeded_release",
+                source_type="order",
+                source_id=str(order.id),
+            )
+
+    def _release_reserve(self, order) -> None:
+        for item in order.items:
+            variant = self._catalog_repository.get_variant_by_sku(item.sku)
+            if variant is None:
+                continue
+            self._catalog_repository.add_inventory_movement(
+                sku_id=variant.id,
+                movement_type=InventoryMovementType.release,
+                qty=item.qty,
+                reason="payment_canceled_release",
+                source_type="order",
+                source_id=str(order.id),
+            )
 
     def _to_read(self, order) -> OrderRead:
         return OrderRead(

@@ -46,7 +46,7 @@ def test_admin_created_product_visible_in_catalog_and_checkout(tmp_path: Path) -
         async def create_payment_intent(self, amount, idempotence_key: str, description: str):
             return {"id": "dummy", "status": "pending"}
 
-    orders_router._service = DefaultOrdersService(runtime.orders_repository, runtime.cart_repository, DummyYooKassaClient())
+    orders_router._service = DefaultOrdersService(runtime.orders_repository, runtime.cart_repository, DummyYooKassaClient(), runtime.catalog_repository)
     admin_router._catalog_service = DefaultCatalogService(runtime.catalog_repository)
 
     async def _fake_user():

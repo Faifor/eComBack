@@ -44,6 +44,17 @@ class CommerceInventory(Base):
     variant_id: Mapped[int] = mapped_column(ForeignKey("commerce_variants.id", ondelete="CASCADE"), unique=True, nullable=False)
     qty: Mapped[int] = mapped_column(default=0, nullable=False)
 
+class CommerceInventoryMovement(Base):
+    __tablename__ = "inventory_movements"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    sku_id: Mapped[int] = mapped_column(ForeignKey("commerce_variants.id", ondelete="CASCADE"), nullable=False)
+    movement_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    qty: Mapped[int] = mapped_column(nullable=False)
+    reason: Mapped[str | None] = mapped_column(Text(), nullable=True)
+    source_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    source_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
 
 class CommerceAttribute(Base):
     __tablename__ = "commerce_attributes"

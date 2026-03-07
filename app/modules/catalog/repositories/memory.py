@@ -1,17 +1,27 @@
+from datetime import datetime, timezone
 from decimal import Decimal
 
-from app.modules.catalog.models.entity import Category, Inventory, Product, ProductAttribute, ProductVariant
+from app.modules.catalog.models.entity import (
+    Category,
+    Inventory,
+    InventoryMovement,
+    InventoryMovementType,
+    Product,
+    ProductAttribute,
+    ProductVariant,
+)
 from app.modules.catalog.repositories.base import CatalogRepository
 
 
 class InMemoryCatalogRepository(CatalogRepository):
     def __init__(self) -> None:
-        self._next_ids = {"category": 1, "product": 1, "variant": 1, "inventory": 1, "attribute": 1}
+        self._next_ids = {"category": 1, "product": 1, "variant": 1, "inventory": 1, "attribute": 1, "movement": 1}
         self._categories: dict[int, Category] = {}
         self._products: dict[int, Product] = {}
         self._variants: dict[int, ProductVariant] = {}
         self._inventory: dict[int, Inventory] = {}
         self._attributes: dict[int, ProductAttribute] = {}
+        self._movements: list[InventoryMovement] = []
 
     def _next_id(self, key: str) -> int:
         val = self._next_ids[key]
@@ -53,15 +63,24 @@ class InMemoryCatalogRepository(CatalogRepository):
 
     def set_inventory(self, variant_id: int, qty: int) -> Inventory:
         existing = self._inventory.get(variant_id)
+        previous_qty = existing.qty if existing else 0
         if existing:
             existing.qty = qty
-            return existing
-        item = Inventory(id=self._next_id("inventory"), variant_id=variant_id, qty=qty)
-        self._inventory[variant_id] = item
-        return item
+        else:
+            existing = Inventory(id=self._next_id("inventory"), variant_id=variant_id, qty=qty)
+            self._inventory[variant_id] = existing
+        delta = qty - previous_qty
+        if delta != 0:
+            movement_type = InventoryMovementType.receipt if delta > 0 else InventoryMovementType.adjustment
+            self.add_inventory_movement(variant_id, movement_type, delta, reason="inventory_sync", source_type="inventory", source_id=str(variant_id))
+        return self.get_inventory(variant_id)
 
     def get_inventory(self, variant_id: int) -> Inventory | None:
-        return self._inventory.get(variant_id)
+        raw = self._inventory.get(variant_id)
+        if raw is None:
+            return None
+        on_hand, reserved, available = self.inventory_summary(variant_id)
+        return Inventory(id=raw.id, variant_id=raw.variant_id, qty=raw.qty, on_hand=on_hand, reserved=reserved, available=available)
 
     def add_attribute(self, product_id: int, name: str, value: str) -> ProductAttribute:
         item = ProductAttribute(id=self._next_id("attribute"), product_id=product_id, name=name, value=value)
@@ -70,3 +89,53 @@ class InMemoryCatalogRepository(CatalogRepository):
 
     def list_attributes(self, product_id: int) -> list[ProductAttribute]:
         return [attr for attr in self._attributes.values() if attr.product_id == product_id]
+
+    def add_inventory_movement(
+        self,
+        sku_id: int,
+        movement_type: InventoryMovementType,
+        qty: int,
+        reason: str | None = None,
+        source_type: str | None = None,
+        source_id: str | None = None,
+    ) -> InventoryMovement:
+        movement = InventoryMovement(
+            id=self._next_id("movement"),
+            sku_id=sku_id,
+            movement_type=movement_type,
+            qty=qty,
+            reason=reason,
+            source_type=source_type,
+            source_id=source_id,
+            created_at=datetime.now(timezone.utc),
+        )
+        self._movements.append(movement)
+        return movement
+
+    def list_inventory_movements(self, sku_id: int, created_from=None, created_to=None) -> list[InventoryMovement]:
+        rows = [m for m in self._movements if m.sku_id == sku_id]
+        if created_from is not None:
+            rows = [m for m in rows if m.created_at >= created_from]
+        if created_to is not None:
+            rows = [m for m in rows if m.created_at <= created_to]
+        return sorted(rows, key=lambda m: m.created_at, reverse=True)
+
+    def inventory_summary(self, sku_id: int) -> tuple[int, int, int]:
+        movements = self.list_inventory_movements(sku_id)
+        on_hand = 0
+        reserved = 0
+        for movement in movements:
+            if movement.movement_type in {InventoryMovementType.receipt, InventoryMovementType.returned}:
+                on_hand += movement.qty
+            elif movement.movement_type == InventoryMovementType.sale:
+                on_hand -= movement.qty
+            elif movement.movement_type == InventoryMovementType.adjustment:
+                on_hand += movement.qty
+            elif movement.movement_type == InventoryMovementType.reserve:
+                reserved += movement.qty
+            elif movement.movement_type == InventoryMovementType.release:
+                reserved -= movement.qty
+        if reserved < 0:
+            reserved = 0
+        available = on_hand - reserved
+        return on_hand, reserved, available

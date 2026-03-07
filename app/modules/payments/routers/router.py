@@ -6,10 +6,10 @@ from fastapi import APIRouter, Header, HTTPException, Request, status
 from app.core.config import YOOKASSA_WEBHOOK_SECRET
 from app.modules.orders.services.service import DefaultOrdersService
 from app.modules.payments.services.yookassa_client import YooKassaClient
-from app.modules.runtime import cart_repository, orders_repository
+from app.modules.runtime import cart_repository, catalog_repository, orders_repository
 
 router = APIRouter(prefix='/payments', tags=['payments'])
-_orders_service = DefaultOrdersService(orders_repository, cart_repository, YooKassaClient())
+_orders_service = DefaultOrdersService(orders_repository, cart_repository, YooKassaClient(), catalog_repository)
 
 @router.post('/yookassa/webhook', status_code=status.HTTP_200_OK)
 async def yookassa_webhook(

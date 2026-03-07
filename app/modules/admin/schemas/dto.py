@@ -172,3 +172,21 @@ class RetentionLtvReport(BaseModel):
     returning_users: int
     retention_rate: float
     average_ltv: float
+
+class InventoryMovementRead(BaseModel):
+    id: int
+    sku_id: int
+    movement_type: str
+    qty: int
+    reason: str | None = None
+    source_type: str | None = None
+    source_id: str | None = None
+    created_at: datetime
+
+
+class SKUInventoryCardRead(BaseModel):
+    sku_id: int
+    on_hand: int
+    reserved: int
+    available: int
+    movements: list[InventoryMovementRead] = Field(default_factory=list)

@@ -1,7 +1,15 @@
 from abc import ABC, abstractmethod
 from decimal import Decimal
 
-from app.modules.catalog.models.entity import Category, Inventory, Product, ProductAttribute, ProductVariant
+from app.modules.catalog.models.entity import (
+    Category,
+    Inventory,
+    InventoryMovement,
+    InventoryMovementType,
+    Product,
+    ProductAttribute,
+    ProductVariant,
+)
 
 
 class CatalogRepository(ABC):
@@ -37,6 +45,29 @@ class CatalogRepository(ABC):
 
     @abstractmethod
     def get_inventory(self, variant_id: int) -> Inventory | None: ...
+
+    @abstractmethod
+    def add_inventory_movement(
+        self,
+        sku_id: int,
+        movement_type: InventoryMovementType,
+        qty: int,
+        reason: str | None = None,
+        source_type: str | None = None,
+        source_id: str | None = None,
+    ) -> InventoryMovement: ...
+
+    @abstractmethod
+    def list_inventory_movements(
+        self,
+        sku_id: int,
+        created_from=None,
+        created_to=None,
+    ) -> list[InventoryMovement]: ...
+
+    @abstractmethod
+    def inventory_summary(self, sku_id: int) -> tuple[int, int, int]: ...
+
 
     @abstractmethod
     def add_attribute(self, product_id: int, name: str, value: str) -> ProductAttribute: ...

@@ -5,11 +5,11 @@ from app.modules.auth.models.entity import UserRole
 from app.modules.orders.schemas.dto import CheckoutRequest, OrderRead, OrderStatusUpdate
 from app.modules.orders.services.service import DefaultOrdersService
 from app.modules.payments.services.yookassa_client import YooKassaClient
-from app.modules.runtime import cart_repository, orders_repository
+from app.modules.runtime import cart_repository, catalog_repository, orders_repository
 
 
 router = APIRouter(prefix="/orders", tags=["orders"])
-_service = DefaultOrdersService(orders_repository, cart_repository, YooKassaClient())
+_service = DefaultOrdersService(orders_repository, cart_repository, YooKassaClient(), catalog_repository)
 
 
 @router.post("/checkout", response_model=OrderRead, status_code=status.HTTP_201_CREATED)

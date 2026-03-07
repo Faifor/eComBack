@@ -5,6 +5,7 @@ import io
 import json
 import zipfile
 from collections import defaultdict
+from datetime import datetime
 from decimal import Decimal
 from xml.etree import ElementTree
 
@@ -26,6 +27,7 @@ from app.modules.admin.schemas.dto import (
     RetentionLtvReport,
     RevenueReport,
     SKUCreate,
+    SKUInventoryCardRead,
     SKURead,
     TopProduct,
 )
@@ -89,6 +91,37 @@ def list_skus() -> list[SKURead]:
 def create_inventory(payload: InventoryCreate) -> InventoryRead:
     item = _catalog_service.set_inventory(InventorySet(variant_id=payload.sku_id, qty=payload.stock))
     return InventoryRead(id=item.id, sku_id=item.variant_id, stock=item.qty)
+
+@router.get("/skus/{sku_id}/inventory-card", response_model=SKUInventoryCardRead)
+def sku_inventory_card(
+    sku_id: int,
+    created_from: datetime | None = None,
+    created_to: datetime | None = None,
+) -> SKUInventoryCardRead:
+    inventory = _catalog_service.get_inventory(sku_id)
+    if inventory is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="sku inventory not found")
+
+    movements = catalog_repository.list_inventory_movements(sku_id, created_from=created_from, created_to=created_to)
+    return SKUInventoryCardRead(
+        sku_id=sku_id,
+        on_hand=inventory.on_hand,
+        reserved=inventory.reserved,
+        available=inventory.available,
+        movements=[
+            {
+                "id": m.id,
+                "sku_id": m.sku_id,
+                "movement_type": m.movement_type.value,
+                "qty": m.qty,
+                "reason": m.reason,
+                "source_type": m.source_type,
+                "source_id": m.source_id,
+                "created_at": m.created_at,
+            }
+            for m in movements
+        ],
+    )
 
 
 @router.post("/pricing-rules", response_model=PricingRuleRead, status_code=status.HTTP_201_CREATED)

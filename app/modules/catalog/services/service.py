@@ -49,6 +49,10 @@ class DefaultCatalogService(CatalogService):
             raise ValueError("variant not found")
         i = self._repository.set_inventory(payload.variant_id, payload.qty)
         return InventoryRead.model_validate(i.__dict__)
+    
+    def get_inventory(self, variant_id: int) -> InventoryRead | None:
+        inv = self._repository.get_inventory(variant_id)
+        return InventoryRead.model_validate(inv.__dict__) if inv else None
 
     def add_attribute(self, payload: ProductAttributeCreate) -> ProductAttributeRead:
         if self._repository.get_product(payload.product_id) is None:

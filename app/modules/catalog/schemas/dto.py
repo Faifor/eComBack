@@ -49,6 +49,9 @@ class InventoryRead(BaseModel):
     id: int
     variant_id: int
     qty: int
+    on_hand: int = 0
+    reserved: int = 0
+    available: int = 0
 
 
 class ProductAttributeCreate(BaseModel):
