@@ -1,0 +1,13 @@
+{
+  "average_check_formula": "revenue / paid_orders",
+  "paid_payment_statuses": [
+    "paid",
+    "succeeded"
+  ],
+  "paid_statuses": [
+    "completed",
+    "paid"
+  ],
+  "retention_formula": "users_with_2_plus_paid_orders / users_with_1_plus_paid_orders",
+  "revenue_formula": "sum(order_items.line_total) for paid/completed orders"
+}

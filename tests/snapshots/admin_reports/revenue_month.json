@@ -1,0 +1,12 @@
+{
+  "group_by": "month",
+  "paid_orders": 2,
+  "series": [
+    {
+      "bucket": "2026-03-01",
+      "orders": 2,
+      "revenue": 350.0
+    }
+  ],
+  "total_revenue": 350.0
+}

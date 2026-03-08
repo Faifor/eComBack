@@ -4,7 +4,6 @@ import csv
 import io
 import json
 import zipfile
-from collections import defaultdict
 from datetime import datetime
 from decimal import Decimal
 from xml.etree import ElementTree
@@ -20,10 +19,12 @@ from app.modules.admin.schemas.dto import (
     ImportRowError,
     InventoryCreate,
     InventoryRead,
+    MetricsBusinessRules,
     PricingRuleCreate,
     PricingRuleRead,
     ProductCreate,
     ProductRead,
+    ReportFilters,
     RetentionLtvReport,
     RevenueReport,
     SKUCreate,
@@ -40,12 +41,13 @@ from app.modules.catalog.schemas.dto import (
     ProductVariantCreate,
 )
 from app.modules.catalog.services.service import DefaultCatalogService
-from app.modules.orders.models.entity import OrderStatus
 from app.modules.pricing.schemas.dto import PricingRuleCreate as PricingRuleCreateDto
-from app.modules.runtime import catalog_repository, orders_repository, pricing_service
+from app.modules.admin.reports import SQLAdminReports
+from app.modules.runtime import catalog_repository, pricing_service
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_role(UserRole.ADMIN))])
 _catalog_service = DefaultCatalogService(catalog_repository)
+_reports = SQLAdminReports()
 
 
 @router.post("/categories", response_model=CategoryRead, status_code=status.HTTP_201_CREATED)
@@ -216,54 +218,110 @@ async def import_products(filename: str, content: str, dry_run: bool = True) -> 
 
     return report
 
+@router.get("/reports/business-rules", response_model=MetricsBusinessRules)
+def metrics_business_rules() -> MetricsBusinessRules:
+    return MetricsBusinessRules(**_reports.business_rules())
+
+
 
 @router.get("/reports/revenue", response_model=RevenueReport)
-def revenue_report() -> RevenueReport:
-    paid = [o for o in orders_repository.list_orders() if o.status in {OrderStatus.paid, OrderStatus.completed}]
-    total = sum(float(o.total_price) for o in paid)
-    return RevenueReport(total_revenue=total, paid_orders=len(paid))
+def revenue_report(
+    from_dt: datetime | None = None,
+    to_dt: datetime | None = None,
+    group_by: str = "day",
+    category_id: int | None = None,
+    channel: str | None = None,
+    promo_code: str | None = None,
+) -> RevenueReport:
+    filters = ReportFilters.model_validate(
+        {
+            "from": from_dt,
+            "to": to_dt,
+            "group_by": group_by,
+            "category_id": category_id,
+            "channel": channel,
+            "promo_code": promo_code,
+        }
+    )
+    return RevenueReport(**_reports.revenue(filters=filters, group_by=filters.group_by))
 
 
 @router.get("/reports/top-products", response_model=list[TopProduct])
-def top_products_report(limit: int = 5) -> list[TopProduct]:
-    counts: dict[str, int] = defaultdict(int)
-    for order in orders_repository.list_orders():
-        for item in order.items:
-            counts[item.title] += item.qty
-    ranked = sorted(counts.items(), key=lambda item: item[1], reverse=True)[:limit]
-    return [TopProduct(product_id=idx + 1, product_name=name, units_sold=units) for idx, (name, units) in enumerate(ranked)]
+def top_products_report(
+    limit: int = 5,
+    from_dt: datetime | None = None,
+    to_dt: datetime | None = None,
+    category_id: int | None = None,
+    channel: str | None = None,
+    promo_code: str | None = None,
+) -> list[TopProduct]:
+    filters = ReportFilters.model_validate(
+        {
+            "from": from_dt,
+            "to": to_dt,
+            "category_id": category_id,
+            "channel": channel,
+            "promo_code": promo_code,
+        }
+    )
+    return [TopProduct(**item) for item in _reports.top_products(filters=filters, limit=limit)]
 
 
 @router.get("/reports/conversion", response_model=ConversionReport)
-def conversion_report() -> ConversionReport:
-    orders = orders_repository.list_orders()
-    users = {order.user_id for order in orders}
-    conversion_rate = len(orders) / len(users) if users else 0
-    return ConversionReport(total_orders=len(orders), total_users=len(users), conversion_rate=conversion_rate)
+def conversion_report(
+    from_dt: datetime | None = None,
+    to_dt: datetime | None = None,
+    category_id: int | None = None,
+    channel: str | None = None,
+    promo_code: str | None = None,
+) -> ConversionReport:
+    filters = ReportFilters.model_validate(
+        {
+            "from": from_dt,
+            "to": to_dt,
+            "category_id": category_id,
+            "channel": channel,
+            "promo_code": promo_code,
+        }
+    )
+    return ConversionReport(**_reports.conversion(filters=filters))
 
 
 @router.get("/reports/average-check", response_model=AverageCheckReport)
-def average_check_report() -> AverageCheckReport:
-    orders = orders_repository.list_orders()
-    if not orders:
-        return AverageCheckReport(average_check=0)
-    total = sum(float(order.total_price) for order in orders)
-    return AverageCheckReport(average_check=total / len(orders))
+def average_check_report(
+    from_dt: datetime | None = None,
+    to_dt: datetime | None = None,
+    category_id: int | None = None,
+    channel: str | None = None,
+    promo_code: str | None = None,
+) -> AverageCheckReport:
+    filters = ReportFilters.model_validate(
+        {
+            "from": from_dt,
+            "to": to_dt,
+            "category_id": category_id,
+            "channel": channel,
+            "promo_code": promo_code,
+        }
+    )
+    return AverageCheckReport(**_reports.average_check(filters=filters))
 
 
 @router.get("/reports/retention-ltv", response_model=RetentionLtvReport)
-def retention_ltv_report() -> RetentionLtvReport:
-    orders = orders_repository.list_orders()
-    by_user: dict[int, int] = defaultdict(int)
-    spend: dict[int, float] = defaultdict(float)
-    for order in orders:
-        by_user[order.user_id] += 1
-        spend[order.user_id] += float(order.total_price)
-
-    total_users = len(by_user)
-    returning_users = sum(1 for count in by_user.values() if count > 1)
-    return RetentionLtvReport(
-        returning_users=returning_users,
-        retention_rate=(returning_users / total_users) if total_users else 0,
-        average_ltv=(sum(spend.values()) / total_users) if total_users else 0,
+def retention_ltv_report(
+    from_dt: datetime | None = None,
+    to_dt: datetime | None = None,
+    category_id: int | None = None,
+    channel: str | None = None,
+    promo_code: str | None = None,
+) -> RetentionLtvReport:
+    filters = ReportFilters.model_validate(
+        {
+            "from": from_dt,
+            "to": to_dt,
+            "category_id": category_id,
+            "channel": channel,
+            "promo_code": promo_code,
+        }
     )
+    return RetentionLtvReport(**_reports.retention_ltv(filters=filters))

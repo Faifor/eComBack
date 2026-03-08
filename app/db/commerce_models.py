@@ -89,6 +89,9 @@ class CommerceOrder(Base):
     payment_method: Mapped[str] = mapped_column(String(32), nullable=False)
     payment_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     payment_status: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    sales_channel: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    promo_code: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     total_price: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False, default=Decimal("0.00"))
 
 

@@ -1,0 +1,12 @@
+[
+  {
+    "product_id": 1,
+    "product_name": "Runner",
+    "units_sold": 2
+  },
+  {
+    "product_id": 2,
+    "product_name": "Cotton Tee",
+    "units_sold": 1
+  }
+]

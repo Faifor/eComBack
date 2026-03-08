@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from pydantic import BaseModel, Field
+from typing import Literal
 
 
 class CategoryCreate(BaseModel):
@@ -146,10 +147,25 @@ class ImportReport(BaseModel):
     updated: int
     errors: list[ImportRowError] = Field(default_factory=list)
 
+class ReportFilters(BaseModel):
+    from_dt: datetime | None = Field(default=None, alias="from")
+    to_dt: datetime | None = Field(default=None, alias="to")
+    group_by: Literal["day", "week", "month"] = "day"
+    category_id: int | None = None
+    channel: str | None = None
+    promo_code: str | None = None
+
+
+class RevenueSeriesPoint(BaseModel):
+    bucket: str
+    revenue: float
+    orders: int
 
 class RevenueReport(BaseModel):
     total_revenue: float
     paid_orders: int
+    group_by: str
+    series: list[RevenueSeriesPoint] = Field(default_factory=list)
 
 
 class TopProduct(BaseModel):
@@ -172,6 +188,13 @@ class RetentionLtvReport(BaseModel):
     returning_users: int
     retention_rate: float
     average_ltv: float
+
+class MetricsBusinessRules(BaseModel):
+    paid_statuses: list[str]
+    paid_payment_statuses: list[str]
+    revenue_formula: str
+    retention_formula: str
+    average_check_formula: str
 
 class InventoryMovementRead(BaseModel):
     id: int
