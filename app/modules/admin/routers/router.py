@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import io
 import json
 import zipfile
@@ -9,12 +10,28 @@ from decimal import Decimal
 from xml.etree import ElementTree
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
 
+from app.db import sync_session
+from app.db.commerce_models import (
+    CommerceCategory,
+    CommerceImportLedger,
+    CommerceInventory,
+    CommerceProduct,
+    CommerceVariant,
+)
+from app.modules.admin.reports import SQLAdminReports
 from app.modules.admin.schemas.dto import (
     AverageCheckReport,
+    BulkOperationReport,
+    BulkPriceUpdateItem,
+    BulkStatusUpdateItem,
+    BulkStockUpdateItem,
     CategoryCreate,
     CategoryRead,
     ConversionReport,
+    ImportIdempotencyInfo,
+    ImportProductsRequest,
     ImportReport,
     ImportRowError,
     InventoryCreate,
@@ -42,7 +59,6 @@ from app.modules.catalog.schemas.dto import (
 )
 from app.modules.catalog.services.service import DefaultCatalogService
 from app.modules.pricing.schemas.dto import PricingRuleCreate as PricingRuleCreateDto
-from app.modules.admin.reports import SQLAdminReports
 from app.modules.runtime import catalog_repository, pricing_service
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_role(UserRole.ADMIN))])
@@ -149,6 +165,48 @@ def list_pricing_rules() -> list[PricingRuleRead]:
     rules = pricing_service.list_rules()
     return [PricingRuleRead(id=i.id, name=i.name, discount_percent=float(i.value), is_active=i.active) for i in rules]
 
+@router.post("/bulk/sku-prices", response_model=BulkOperationReport)
+def bulk_update_sku_prices(items: list[BulkPriceUpdateItem]) -> BulkOperationReport:
+    report = BulkOperationReport(updated=0, errors=[])
+    with sync_session.SyncSessionLocal() as db:
+        for idx, item in enumerate(items, start=1):
+            variant = db.scalar(select(CommerceVariant).where(CommerceVariant.sku == item.sku))
+            if variant is None:
+                report.errors.append(ImportRowError(row=idx, field="sku", reason="SKU not found"))
+                continue
+            variant.base_price = Decimal(str(item.price))
+            report.updated += 1
+        db.commit()
+    return report
+
+
+@router.post("/bulk/sku-stocks", response_model=BulkOperationReport)
+def bulk_update_sku_stocks(items: list[BulkStockUpdateItem]) -> BulkOperationReport:
+    report = BulkOperationReport(updated=0, errors=[])
+    for idx, item in enumerate(items, start=1):
+        variant = catalog_repository.get_variant_by_sku(item.sku)
+        if variant is None:
+            report.errors.append(ImportRowError(row=idx, field="sku", reason="SKU not found"))
+            continue
+        _catalog_service.set_inventory(InventorySet(variant_id=variant.id, qty=item.stock))
+        report.updated += 1
+    return report
+
+
+@router.post("/bulk/sku-statuses", response_model=BulkOperationReport)
+def bulk_update_sku_statuses(items: list[BulkStatusUpdateItem]) -> BulkOperationReport:
+    report = BulkOperationReport(updated=0, errors=[])
+    with sync_session.SyncSessionLocal() as db:
+        for idx, item in enumerate(items, start=1):
+            variant = db.scalar(select(CommerceVariant).where(CommerceVariant.sku == item.sku))
+            if variant is None:
+                report.errors.append(ImportRowError(row=idx, field="sku", reason="SKU not found"))
+                continue
+            variant.status = item.status
+            report.updated += 1
+        db.commit()
+    return report
+
 
 def _read_xlsx(content: bytes) -> list[dict[str, str]]:
     with zipfile.ZipFile(io.BytesIO(content)) as archive:
@@ -182,39 +240,134 @@ def _load_import_rows(filename: str, content: bytes) -> list[dict[str, str]]:
     raise HTTPException(status_code=400, detail="Only CSV/XLSX files are supported")
 
 @router.post("/imports/products", response_model=ImportReport)
-async def import_products(filename: str, content: str, dry_run: bool = True) -> ImportReport:
+async def import_products(
+    payload: ImportProductsRequest,
+    dry_run: bool = True,
+    upsert: bool = False,
+    rollback_on_error: bool = False,
+    external_key: str = "products-import",
+    version: str | None = None,
+) -> ImportReport:
+    filename = payload.filename
+    content = payload.content
     if not filename:
         raise HTTPException(status_code=400, detail="Filename is required")
     
+
     rows = _load_import_rows(filename.lower(), content.encode("utf-8"))
+    report = ImportReport(created=0, updated=0, skipped=0, idempotency=[], errors=[])
 
-    report = ImportReport(created=0, updated=0, errors=[])
+    with sync_session.SyncSessionLocal() as db:
+        for idx, row in enumerate(rows, start=2):
+            try:
+                sku_code = row["sku"].strip()
+                product_name = row["product_name"].strip()
+                category_name = row["category_name"].strip()
+                stock = int(float(row["stock"]))
+                row_external_key = (row.get("external_key") or external_key or sku_code).strip()
+                row_version = (row.get("version") or version or "1").strip()
+                content_hash = hashlib.sha256(
+                    json.dumps(row, sort_keys=True, ensure_ascii=False).encode("utf-8")
+                ).hexdigest()
 
-    for idx, row in enumerate(rows, start=2):
-        try:
-            sku_code = row["sku"].strip()
-            product_name = row["product_name"].strip()
-            category_name = row["category_name"].strip()
-            stock = int(float(row["stock"]))
+                existing_ledger = db.scalar(
+                    select(CommerceImportLedger).where(
+                        CommerceImportLedger.external_key == row_external_key,
+                        CommerceImportLedger.version == row_version,
+                        CommerceImportLedger.content_hash == content_hash,
+                    )
+                )
+                if existing_ledger is not None:
+                    report.skipped += 1
+                    report.idempotency.append(
+                        ImportIdempotencyInfo(
+                            external_key=row_external_key,
+                            version=row_version,
+                            content_hash=content_hash,
+                            action="skipped",
+                        )
+                    )
+                    continue
 
-            if dry_run:
-                report.created += 1
-                continue
+                existing_variant = db.scalar(select(CommerceVariant).where(CommerceVariant.sku == sku_code))
+                action = "created"
+                if existing_variant is not None and not upsert:
+                    raise ValueError("SKU already exists and upsert=false")
 
-            category = next((c for c in _catalog_service.list_categories() if c.name == category_name), None)
-            if category is None:
-                category = _catalog_service.create_category(CatalogCategoryCreate(name=category_name, parent_id=None))
+                if not dry_run:
+                    category = db.scalar(select(CommerceCategory).where(CommerceCategory.name == category_name))
+                    if category is None:
+                        category = CommerceCategory(name=category_name, parent_id=None)
+                        db.add(category)
+                        db.flush()
 
-            product = _catalog_service.create_product(
-                CatalogProductCreate(title=product_name, category_id=category.id, base_price=Decimal("0.00"))
-            )
-            variant = _catalog_service.create_variant(
-                ProductVariantCreate(product_id=product.id, sku=sku_code, title=sku_code, base_price=None)
-            )
-            _catalog_service.set_inventory(InventorySet(variant_id=variant.id, qty=stock))
-            report.created += 1
-        except Exception as exc:  # noqa: BLE001
-            report.errors.append(ImportRowError(row=idx, message=str(exc)))
+                    if existing_variant is None:
+                        product = CommerceProduct(title=product_name, category_id=category.id, base_price=Decimal("0.00"))
+                        db.add(product)
+                        db.flush()
+                        variant = CommerceVariant(
+                            product_id=product.id,
+                            sku=sku_code,
+                            title=sku_code,
+                            base_price=Decimal("0.00"),
+                            status="active",
+                        )
+                        db.add(variant)
+                        db.flush()
+                        inventory = CommerceInventory(variant_id=variant.id, qty=stock)
+                        db.add(inventory)
+                        report.created += 1
+                    else:
+                        action = "updated"
+                        product = db.get(CommerceProduct, existing_variant.product_id)
+                        if product is not None:
+                            product.title = product_name
+                            product.category_id = category.id
+                        inventory = db.scalar(select(CommerceInventory).where(CommerceInventory.variant_id == existing_variant.id))
+                        if inventory is None:
+                            db.add(CommerceInventory(variant_id=existing_variant.id, qty=stock))
+                        else:
+                            inventory.qty = stock
+                        report.updated += 1
+
+                    db.add(
+                        CommerceImportLedger(
+                            external_key=row_external_key,
+                            version=row_version,
+                            content_hash=content_hash,
+                            sku=sku_code,
+                        )
+                    )
+                else:
+                    if existing_variant is None:
+                        report.created += 1
+                    else:
+                        action = "updated"
+                        report.updated += 1
+
+                report.idempotency.append(
+                    ImportIdempotencyInfo(
+                        external_key=row_external_key,
+                        version=row_version,
+                        content_hash=content_hash,
+                        action=action,
+                    )
+                )
+            except KeyError as exc:
+                report.errors.append(ImportRowError(row=idx, field=str(exc).strip("'"), reason="Required field is missing"))
+            except Exception as exc:  # noqa: BLE001
+                report.errors.append(ImportRowError(row=idx, field="row", reason=str(exc)))
+
+        if dry_run:
+            db.rollback()
+        elif report.errors and rollback_on_error:
+            db.rollback()
+            report.created = 0
+            report.updated = 0
+            report.skipped = 0
+            report.idempotency = [item for item in report.idempotency if item.action == "skipped"]
+        else:
+            db.commit()
 
     return report
 

@@ -98,3 +98,91 @@ def test_admin_created_product_visible_in_catalog_and_checkout(tmp_path: Path) -
     assert stored.json()["items"][0]["sku"] == "RUN-42"
 
     app.dependency_overrides.clear()
+
+def test_admin_import_modes_bulk_and_idempotency(tmp_path: Path) -> None:
+    db_file = tmp_path / "integration_imports.db"
+    engine = create_engine(f"sqlite:///{db_file}", future=True)
+    sync_session.sync_engine = engine
+    sync_session.SyncSessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+    Base.metadata.create_all(bind=engine)
+
+    runtime.catalog_repository = SQLAlchemyCatalogRepository()
+    runtime.pricing_repository = SQLAlchemyPricingRepository()
+    runtime.pricing_service = DefaultPricingService(runtime.pricing_repository, runtime.catalog_repository)
+    admin_router._catalog_service = DefaultCatalogService(runtime.catalog_repository)
+
+    async def _fake_user():
+        return UserProfile(
+            id=1,
+            email="admin@example.com",
+            full_name="Admin",
+            phone=None,
+            role=UserRole.ADMIN,
+            hashed_password="x",
+            created_at=datetime.utcnow(),
+        )
+
+    app.dependency_overrides[get_current_user] = _fake_user
+    client = TestClient(app)
+
+    payload = {
+        "filename": "products.csv",
+        "content": "sku,product_name,category_name,stock,external_key,version\nRUN-43,Runner,Footwear,7,ext-run,1",
+    }
+
+    dry = client.post("/api/v1/admin/imports/products", params={"dry_run": True, "upsert": True}, json=payload)
+    assert dry.status_code == 200
+    assert dry.json()["created"] == 1
+
+    imported = client.post(
+        "/api/v1/admin/imports/products",
+        params={"dry_run": False, "upsert": True, "external_key": "batch-a", "version": "v1"},
+        json=payload,
+    )
+    assert imported.status_code == 200
+    assert imported.json()["created"] == 1
+
+    duplicated = client.post(
+        "/api/v1/admin/imports/products",
+        params={"dry_run": False, "upsert": True, "external_key": "batch-a", "version": "v1"},
+        json=payload,
+    )
+    assert duplicated.status_code == 200
+    assert duplicated.json()["skipped"] == 1
+
+    updated = client.post(
+        "/api/v1/admin/imports/products",
+        params={"dry_run": False, "upsert": True, "external_key": "batch-a", "version": "v2"},
+        json={
+            "filename": "products.csv",
+            "content": "sku,product_name,category_name,stock,external_key,version\nRUN-43,Runner 2,Footwear,9,ext-run,2",
+        },
+    )
+    assert updated.status_code == 200
+    assert updated.json()["updated"] == 1
+
+    rollback = client.post(
+        "/api/v1/admin/imports/products",
+        params={"dry_run": False, "upsert": False, "rollback_on_error": True},
+        json={
+            "filename": "products.csv",
+            "content": "sku,product_name,category_name,stock\nRUN-44,Runner,Footwear,5\nRUN-43,Runner,Footwear,5",
+        },
+    )
+    assert rollback.status_code == 200
+    assert rollback.json()["created"] == 0
+    assert rollback.json()["errors"]
+
+    price_bulk = client.post("/api/v1/admin/bulk/sku-prices", json=[{"sku": "RUN-43", "price": 199.99}])
+    assert price_bulk.status_code == 200
+    assert price_bulk.json()["updated"] == 1
+
+    stock_bulk = client.post("/api/v1/admin/bulk/sku-stocks", json=[{"sku": "RUN-43", "stock": 3}])
+    assert stock_bulk.status_code == 200
+    assert stock_bulk.json()["updated"] == 1
+
+    status_bulk = client.post("/api/v1/admin/bulk/sku-statuses", json=[{"sku": "RUN-43", "status": "inactive"}])
+    assert status_bulk.status_code == 200
+    assert status_bulk.json()["updated"] == 1
+
+    app.dependency_overrides.clear()

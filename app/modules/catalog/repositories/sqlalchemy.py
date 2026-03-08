@@ -102,12 +102,12 @@ class SQLAlchemyCatalogRepository(CatalogRepository):
         with sync_session.SyncSessionLocal() as db:
             row = db.scalar(select(CommerceInventory).where(CommerceInventory.variant_id == variant_id))
             previous_qty = row.qty if row is not None else 0
+            delta = qty - previous_qty
             if row is None:
                 row = CommerceInventory(variant_id=variant_id, qty=qty)
                 db.add(row)
             else:
                 row.qty = qty
-                delta = qty - previous_qty
             if delta != 0:
                 db.add(
                     CommerceInventoryMovement(

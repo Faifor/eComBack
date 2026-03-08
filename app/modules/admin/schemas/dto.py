@@ -136,14 +136,47 @@ class AdminUserRead(BaseModel):
     email: str
     role: str
 
+class ImportProductsRequest(BaseModel):
+    filename: str
+    content: str
 
 class ImportRowError(BaseModel):
     row: int
-    message: str
+    field: str
+    reason: str
+
+
+class ImportIdempotencyInfo(BaseModel):
+    external_key: str
+    version: str
+    content_hash: str
+    action: Literal["created", "updated", "skipped"]
 
 
 class ImportReport(BaseModel):
     created: int
+    updated: int
+    skipped: int = 0
+    idempotency: list[ImportIdempotencyInfo] = Field(default_factory=list)
+    errors: list[ImportRowError] = Field(default_factory=list)
+
+
+class BulkPriceUpdateItem(BaseModel):
+    sku: str
+    price: float = Field(gt=0)
+
+
+class BulkStockUpdateItem(BaseModel):
+    sku: str
+    stock: int = Field(ge=0)
+
+
+class BulkStatusUpdateItem(BaseModel):
+    sku: str
+    status: Literal["active", "inactive", "archived"]
+
+
+class BulkOperationReport(BaseModel):
     updated: int
     errors: list[ImportRowError] = Field(default_factory=list)
 

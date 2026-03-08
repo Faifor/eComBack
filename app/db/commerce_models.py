@@ -35,6 +35,7 @@ class CommerceVariant(Base):
     sku: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     base_price: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
+    status: Mapped[str] = mapped_column(String(32), default="active", nullable=False)
 
 
 class CommerceInventory(Base):
@@ -78,6 +79,16 @@ class CommercePricingRule(Base):
     min_qty: Mapped[int] = mapped_column(default=1, nullable=False)
     coupon_code: Mapped[str | None] = mapped_column(String(100), nullable=True)
     active: Mapped[bool] = mapped_column(default=True, nullable=False)
+
+class CommerceImportLedger(Base):
+    __tablename__ = "commerce_import_ledger"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    external_key: Mapped[str] = mapped_column(String(255), nullable=False)
+    version: Mapped[str] = mapped_column(String(64), nullable=False)
+    content_hash: Mapped[str] = mapped_column(String(128), nullable=False)
+    sku: Mapped[str] = mapped_column(String(128), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
 
 
 class CommerceOrder(Base):
