@@ -6,8 +6,11 @@ from app.modules.catalog.schemas.dto import (
     InventorySet,
     ProductAttributeCreate,
     ProductAttributeRead,
+    ProductImageRead,
     ProductCreate,
     ProductRead,
+    ProductReviewCreate,
+    ProductReviewRead,
     ProductVariantCreate,
     ProductVariantRead,
 )
@@ -65,5 +68,21 @@ def set_inventory(payload: InventorySet) -> InventoryRead:
 def add_attribute(payload: ProductAttributeCreate) -> ProductAttributeRead:
     try:
         return _service.add_attribute(payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@router.post("/products/{product_id}/reviews", response_model=ProductReviewRead, status_code=status.HTTP_201_CREATED)
+def add_product_review(product_id: int, payload: ProductReviewCreate) -> ProductReviewRead:
+    try:
+        return _service.add_review(product_id, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@router.get("/products/{product_id}/reviews", response_model=list[ProductReviewRead])
+def list_product_reviews(product_id: int) -> list[ProductReviewRead]:
+    try:
+        return _service.list_reviews(product_id)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc

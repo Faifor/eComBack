@@ -8,6 +8,9 @@ from app.modules.catalog.models.entity import (
     InventoryMovementType,
     Product,
     ProductAttribute,
+    ProductImage,
+    ProductRatingSummary,
+    ProductReview,
     ProductVariant,
 )
 from app.modules.catalog.repositories.base import CatalogRepository
@@ -15,12 +18,23 @@ from app.modules.catalog.repositories.base import CatalogRepository
 
 class InMemoryCatalogRepository(CatalogRepository):
     def __init__(self) -> None:
-        self._next_ids = {"category": 1, "product": 1, "variant": 1, "inventory": 1, "attribute": 1, "movement": 1}
+        self._next_ids = {
+            "category": 1,
+            "product": 1,
+            "variant": 1,
+            "inventory": 1,
+            "attribute": 1,
+            "movement": 1,
+            "image": 1,
+            "review": 1,
+        }
         self._categories: dict[int, Category] = {}
         self._products: dict[int, Product] = {}
         self._variants: dict[int, ProductVariant] = {}
         self._inventory: dict[int, Inventory] = {}
         self._attributes: dict[int, ProductAttribute] = {}
+        self._images: dict[int, ProductImage] = {}
+        self._reviews: dict[int, ProductReview] = {}
         self._movements: list[InventoryMovement] = []
 
     def _next_id(self, key: str) -> int:
@@ -139,3 +153,55 @@ class InMemoryCatalogRepository(CatalogRepository):
             reserved = 0
         available = on_hand - reserved
         return on_hand, reserved, available
+
+    def add_product_image(
+        self,
+        product_id: int,
+        image_url: str,
+        is_primary: bool = False,
+        sort_order: int = 0,
+    ) -> ProductImage:
+        item = ProductImage(
+            id=self._next_id("image"),
+            product_id=product_id,
+            image_url=image_url,
+            is_primary=is_primary,
+            sort_order=sort_order,
+            created_at=datetime.now(timezone.utc),
+        )
+        self._images[item.id] = item
+        return item
+
+    def list_product_images(self, product_id: int) -> list[ProductImage]:
+        return sorted(
+            [image for image in self._images.values() if image.product_id == product_id],
+            key=lambda image: (image.sort_order, image.id),
+        )
+
+    def add_product_review(self, product_id: int, user_id: int, rating: int, review: str) -> ProductReview:
+        item = ProductReview(
+            id=self._next_id("review"),
+            product_id=product_id,
+            user_id=user_id,
+            rating=rating,
+            review=review,
+            created_at=datetime.now(timezone.utc),
+        )
+        self._reviews[item.id] = item
+        return item
+
+    def list_product_reviews(self, product_id: int) -> list[ProductReview]:
+        return sorted(
+            [review for review in self._reviews.values() if review.product_id == product_id],
+            key=lambda review: review.created_at,
+            reverse=True,
+        )
+
+    def get_product_rating_summary(self, product_id: int) -> ProductRatingSummary:
+        reviews = self.list_product_reviews(product_id)
+        if not reviews:
+            return ProductRatingSummary(average_rating=0.0, reviews_count=0)
+        return ProductRatingSummary(
+            average_rating=round(sum(item.rating for item in reviews) / len(reviews), 2),
+            reviews_count=len(reviews),
+        )

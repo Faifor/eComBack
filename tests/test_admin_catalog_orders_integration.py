@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+import io
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -81,8 +82,24 @@ def test_admin_created_product_visible_in_catalog_and_checkout(tmp_path: Path) -
     inventory = client.post("/api/v1/admin/inventory", json={"sku_id": variant_id, "stock": 5})
     assert inventory.status_code == 201
 
+    image_upload = client.post(
+        f"/api/v1/admin/products/{product_id}/images",
+        files=[("files", ("runner.jpg", io.BytesIO(b"fake-image"), "image/jpeg"))],
+    )
+    assert image_upload.status_code == 201
+    assert image_upload.json()[0]["product_id"] == product_id
+
+    review = client.post(
+        f"/api/v1/catalog/products/{product_id}/reviews",
+        json={"user_id": 42, "rating": 5, "review": "Отличные кроссовки"},
+    )
+    assert review.status_code == 201
+
     catalog_products = client.get("/api/v1/catalog/products")
-    assert any(item["id"] == product_id for item in catalog_products.json())
+    product_payload = next(item for item in catalog_products.json() if item["id"] == product_id)
+    assert product_payload["images"]
+    assert product_payload["average_rating"] == 5.0
+    assert product_payload["reviews_count"] == 1
 
     cart = client.post("/api/v1/cart/", json={"user_id": 42})
     cart_id = cart.json()["id"]

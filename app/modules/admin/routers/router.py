@@ -4,12 +4,15 @@ import csv
 import hashlib
 import io
 import json
+import os
 import zipfile
 from datetime import datetime
 from decimal import Decimal
+from pathlib import Path
+from uuid import uuid4
 from xml.etree import ElementTree
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy import select
 
 from app.db import sync_session
@@ -54,6 +57,7 @@ from app.modules.auth.models.entity import UserRole
 from app.modules.catalog.schemas.dto import (
     CategoryCreate as CatalogCategoryCreate,
     InventorySet,
+    ProductImageRead,
     ProductCreate as CatalogProductCreate,
     ProductVariantCreate,
 )
@@ -64,6 +68,7 @@ from app.modules.runtime import catalog_repository, pricing_service
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_role(UserRole.ADMIN))])
 _catalog_service = DefaultCatalogService(catalog_repository)
 _reports = SQLAdminReports()
+_media_root = Path(os.getenv("MEDIA_ROOT", "media"))
 
 
 @router.post("/categories", response_model=CategoryRead, status_code=status.HTTP_201_CREATED)
@@ -90,6 +95,33 @@ def list_products() -> list[ProductRead]:
         ProductRead(id=item.id, name=item.title, category_id=item.category_id, external_key=None)
         for item in _catalog_service.list_products()
     ]
+
+
+@router.post("/products/{product_id}/images", response_model=list[ProductImageRead], status_code=status.HTTP_201_CREATED)
+def upload_product_images(product_id: int, files: list[UploadFile] = File(...)) -> list[ProductImageRead]:
+    if not files:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="no files provided")
+    uploaded: list[ProductImageRead] = []
+    product_dir = _media_root / "products" / str(product_id)
+    product_dir.mkdir(parents=True, exist_ok=True)
+    existing_count = len(catalog_repository.list_product_images(product_id))
+    for index, upload in enumerate(files):
+        extension = Path(upload.filename or "image").suffix or ".bin"
+        file_name = f"{uuid4().hex}{extension}"
+        target = product_dir / file_name
+        with target.open("wb") as destination:
+            destination.write(upload.file.read())
+        try:
+            image = _catalog_service.add_product_image(
+                product_id,
+                image_url=str(target),
+                is_primary=existing_count == 0 and index == 0,
+                sort_order=existing_count + index,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+        uploaded.append(image)
+    return uploaded
 
 
 @router.post("/skus", response_model=SKURead, status_code=status.HTTP_201_CREATED)

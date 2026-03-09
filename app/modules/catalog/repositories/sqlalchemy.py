@@ -9,10 +9,23 @@ from app.db.commerce_models import (
     CommerceInventory,
     CommerceInventoryMovement,
     CommerceProduct,
+    CommerceProductImage,
+    CommerceProductReview,
     CommerceVariant,
 )
 from app.db import sync_session
-from app.modules.catalog.models.entity import Category, Inventory, InventoryMovement, InventoryMovementType, Product, ProductAttribute, ProductVariant
+from app.modules.catalog.models.entity import (
+    Category,
+    Inventory,
+    InventoryMovement,
+    InventoryMovementType,
+    Product,
+    ProductAttribute,
+    ProductImage,
+    ProductRatingSummary,
+    ProductReview,
+    ProductVariant,
+)
 from app.modules.catalog.repositories.base import CatalogRepository
 
 
@@ -201,3 +214,91 @@ class SQLAlchemyCatalogRepository(CatalogRepository):
         if reserved < 0:
             reserved = 0
         return on_hand, reserved, on_hand - reserved
+
+    def add_product_image(
+        self,
+        product_id: int,
+        image_url: str,
+        is_primary: bool = False,
+        sort_order: int = 0,
+    ) -> ProductImage:
+        with sync_session.SyncSessionLocal() as db:
+            row = CommerceProductImage(
+                product_id=product_id,
+                image_url=image_url,
+                is_primary=is_primary,
+                sort_order=sort_order,
+            )
+            db.add(row)
+            db.commit()
+            db.refresh(row)
+            return ProductImage(
+                id=row.id,
+                product_id=row.product_id,
+                image_url=row.image_url,
+                is_primary=row.is_primary,
+                sort_order=row.sort_order,
+                created_at=row.created_at,
+            )
+
+    def list_product_images(self, product_id: int) -> list[ProductImage]:
+        with sync_session.SyncSessionLocal() as db:
+            rows = db.scalars(
+                select(CommerceProductImage)
+                .where(CommerceProductImage.product_id == product_id)
+                .order_by(CommerceProductImage.sort_order.asc(), CommerceProductImage.id.asc())
+            ).all()
+            return [
+                ProductImage(
+                    id=row.id,
+                    product_id=row.product_id,
+                    image_url=row.image_url,
+                    is_primary=row.is_primary,
+                    sort_order=row.sort_order,
+                    created_at=row.created_at,
+                )
+                for row in rows
+            ]
+
+    def add_product_review(self, product_id: int, user_id: int, rating: int, review: str) -> ProductReview:
+        with sync_session.SyncSessionLocal() as db:
+            row = CommerceProductReview(product_id=product_id, user_id=user_id, rating=rating, review=review)
+            db.add(row)
+            db.commit()
+            db.refresh(row)
+            return ProductReview(
+                id=row.id,
+                product_id=row.product_id,
+                user_id=row.user_id,
+                rating=row.rating,
+                review=row.review,
+                created_at=row.created_at,
+            )
+
+    def list_product_reviews(self, product_id: int) -> list[ProductReview]:
+        with sync_session.SyncSessionLocal() as db:
+            rows = db.scalars(
+                select(CommerceProductReview)
+                .where(CommerceProductReview.product_id == product_id)
+                .order_by(CommerceProductReview.created_at.desc())
+            ).all()
+            return [
+                ProductReview(
+                    id=row.id,
+                    product_id=row.product_id,
+                    user_id=row.user_id,
+                    rating=row.rating,
+                    review=row.review,
+                    created_at=row.created_at,
+                )
+                for row in rows
+            ]
+
+    def get_product_rating_summary(self, product_id: int) -> ProductRatingSummary:
+        reviews = self.list_product_reviews(product_id)
+        if not reviews:
+            return ProductRatingSummary(average_rating=0.0, reviews_count=0)
+        return ProductRatingSummary(
+            average_rating=round(sum(item.rating for item in reviews) / len(reviews), 2),
+            reviews_count=len(reviews),
+        )

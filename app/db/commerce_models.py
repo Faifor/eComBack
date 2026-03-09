@@ -127,3 +127,25 @@ class CommerceOrderStatusHistory(Base):
     from_status: Mapped[str | None] = mapped_column(String(64), nullable=True)
     to_status: Mapped[str] = mapped_column(String(64), nullable=False)
     changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
+class CommerceProductImage(Base):
+    __tablename__ = "commerce_product_images"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("commerce_products.id", ondelete="CASCADE"), nullable=False)
+    image_url: Mapped[str] = mapped_column(String(1024), nullable=False)
+    is_primary: Mapped[bool] = mapped_column(default=False, nullable=False)
+    sort_order: Mapped[int] = mapped_column(default=0, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
+class CommerceProductReview(Base):
+    __tablename__ = "commerce_product_reviews"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("commerce_products.id", ondelete="CASCADE"), nullable=False)
+    user_id: Mapped[int] = mapped_column(nullable=False)
+    rating: Mapped[int] = mapped_column(nullable=False)
+    review: Mapped[str] = mapped_column(Text(), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)

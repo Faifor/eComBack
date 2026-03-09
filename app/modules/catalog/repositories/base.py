@@ -8,6 +8,9 @@ from app.modules.catalog.models.entity import (
     InventoryMovementType,
     Product,
     ProductAttribute,
+    ProductImage,
+    ProductRatingSummary,
+    ProductReview,
     ProductVariant,
 )
 
@@ -74,3 +77,24 @@ class CatalogRepository(ABC):
 
     @abstractmethod
     def list_attributes(self, product_id: int) -> list[ProductAttribute]: ...
+
+    @abstractmethod
+    def add_product_image(
+        self,
+        product_id: int,
+        image_url: str,
+        is_primary: bool = False,
+        sort_order: int = 0,
+    ) -> ProductImage: ...
+
+    @abstractmethod
+    def list_product_images(self, product_id: int) -> list[ProductImage]: ...
+
+    @abstractmethod
+    def add_product_review(self, product_id: int, user_id: int, rating: int, review: str) -> ProductReview: ...
+
+    @abstractmethod
+    def list_product_reviews(self, product_id: int) -> list[ProductReview]: ...
+
+    @abstractmethod
+    def get_product_rating_summary(self, product_id: int) -> ProductRatingSummary: ...
