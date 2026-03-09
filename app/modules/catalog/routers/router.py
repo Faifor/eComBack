@@ -23,7 +23,7 @@ from app.modules.runtime import catalog_repository
 
 router = APIRouter(
     prefix="/catalog",
-    tags=["catalog"],
+    tags=["catalog-user"],
     dependencies=[Depends(require_role(UserRole.USER, UserRole.ADMIN))],
 )
 _service = DefaultCatalogService(catalog_repository)
@@ -33,6 +33,7 @@ _service = DefaultCatalogService(catalog_repository)
     "/categories",
     response_model=CategoryRead,
     status_code=status.HTTP_201_CREATED,
+    include_in_schema=False,
     dependencies=[Depends(require_role(UserRole.ADMIN))],
 )
 def create_category(payload: CategoryCreate) -> CategoryRead:
@@ -50,6 +51,7 @@ def list_categories() -> list[CategoryRead]:
     "/products",
     response_model=ProductRead,
     status_code=status.HTTP_201_CREATED,
+    include_in_schema=False,
     dependencies=[Depends(require_role(UserRole.ADMIN))],
 )
 def create_product(payload: ProductCreate) -> ProductRead:
@@ -68,6 +70,7 @@ def list_products() -> list[ProductRead]:
     "/variants",
     response_model=ProductVariantRead,
     status_code=status.HTTP_201_CREATED,
+    include_in_schema=False,
     dependencies=[Depends(require_role(UserRole.ADMIN))],
 )
 def create_variant(payload: ProductVariantCreate) -> ProductVariantRead:
@@ -77,7 +80,12 @@ def create_variant(payload: ProductVariantCreate) -> ProductVariantRead:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
 
-@router.put("/inventory", response_model=InventoryRead, dependencies=[Depends(require_role(UserRole.ADMIN))])
+@router.put(
+    "/inventory",
+    response_model=InventoryRead,
+    include_in_schema=False,
+    dependencies=[Depends(require_role(UserRole.ADMIN))],
+)
 def set_inventory(payload: InventorySet) -> InventoryRead:
     try:
         return _service.set_inventory(payload)
@@ -89,6 +97,7 @@ def set_inventory(payload: InventorySet) -> InventoryRead:
     "/attributes",
     response_model=ProductAttributeRead,
     status_code=status.HTTP_201_CREATED,
+    include_in_schema=False,
     dependencies=[Depends(require_role(UserRole.ADMIN))],
 )
 def add_attribute(payload: ProductAttributeCreate) -> ProductAttributeRead:
