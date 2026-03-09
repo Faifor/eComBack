@@ -10,7 +10,7 @@ from app.modules.runtime import cart_repository, catalog_repository, orders_repo
 
 router = APIRouter(
     prefix="/orders",
-    tags=["orders"],
+    tags=["orders-user"],
     dependencies=[Depends(require_role(UserRole.USER, UserRole.ADMIN))],
 )
 _service = DefaultOrdersService(orders_repository, cart_repository, YooKassaClient(), catalog_repository)
@@ -37,7 +37,7 @@ def get_order(order_id: int) -> OrderRead:
     return order
 
 
-@router.post("/{order_id}/status", response_model=OrderRead, dependencies=[Depends(require_role(UserRole.ADMIN))])
+@router.post("/{order_id}/status", response_model=OrderRead, tags=["orders-admin"], dependencies=[Depends(require_role(UserRole.ADMIN))])
 def update_order_status(order_id: int, payload: OrderStatusUpdate) -> OrderRead:
     order = _service.transition_status(order_id, payload.status)
     if order is None:
@@ -45,7 +45,7 @@ def update_order_status(order_id: int, payload: OrderStatusUpdate) -> OrderRead:
     return order
 
 
-@router.post("/{order_id}/cod/confirm", response_model=OrderRead, dependencies=[Depends(require_role(UserRole.ADMIN))])
+@router.post("/{order_id}/cod/confirm", response_model=OrderRead, tags=["orders-admin"], dependencies=[Depends(require_role(UserRole.ADMIN))])
 def confirm_cod_payment(order_id: int) -> OrderRead:
     try:
         order = _service.mark_cod_paid(order_id)
