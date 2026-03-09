@@ -12,7 +12,7 @@ from pathlib import Path
 from uuid import uuid4
 from xml.etree import ElementTree
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile, status
 from sqlalchemy import select
 
 from app.db import sync_session
@@ -83,6 +83,17 @@ def list_categories() -> list[CategoryRead]:
     return [CategoryRead(id=item.id, name=item.name, external_key=None) for item in _catalog_service.list_categories()]
 
 
+@router.delete("/categories/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_category(category_id: int) -> Response:
+    try:
+        _catalog_service.delete_category(category_id)
+    except ValueError as exc:
+        if str(exc) == "category has products":
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @router.post("/products", response_model=ProductRead, status_code=status.HTTP_201_CREATED)
 def create_product(payload: ProductCreate) -> ProductRead:
     item = _catalog_service.create_product(
@@ -96,6 +107,15 @@ def list_products() -> list[ProductRead]:
         ProductRead(id=item.id, name=item.title, category_id=item.category_id, external_key=None, description=item.description)
         for item in _catalog_service.list_products()
     ]
+
+
+@router.delete("/products/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_product(product_id: int) -> Response:
+    try:
+        _catalog_service.delete_product(product_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 
