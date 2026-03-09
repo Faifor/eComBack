@@ -25,6 +25,7 @@ class CommerceProduct(Base):
     category_id: Mapped[int] = mapped_column(ForeignKey("commerce_categories.id", ondelete="RESTRICT"), nullable=False)
     base_price: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     is_active: Mapped[bool] = mapped_column(default=True, nullable=False)
+    description: Mapped[str | None] = mapped_column(Text(), nullable=True)
 
 
 class CommerceVariant(Base):

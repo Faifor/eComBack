@@ -53,8 +53,8 @@ class InMemoryCatalogRepository(CatalogRepository):
     def get_category(self, category_id: int) -> Category | None:
         return self._categories.get(category_id)
     
-    def create_product(self, title: str, category_id: int, base_price: Decimal) -> Product:
-        item = Product(id=self._next_id("product"), title=title, category_id=category_id, base_price=base_price)
+    def create_product(self, title: str, category_id: int, base_price: Decimal, description: str | None = None) -> Product:
+        item = Product(id=self._next_id("product"), title=title, category_id=category_id, base_price=base_price, description=description)
         self._products[item.id] = item
         return item
 
@@ -74,6 +74,10 @@ class InMemoryCatalogRepository(CatalogRepository):
 
     def get_variant_by_sku(self, sku: str) -> ProductVariant | None:
         return next((v for v in self._variants.values() if v.sku == sku), None)
+
+
+    def list_variants_by_product(self, product_id: int) -> list[ProductVariant]:
+        return [variant for variant in self._variants.values() if variant.product_id == product_id]
 
     def set_inventory(self, variant_id: int, qty: int) -> Inventory:
         existing = self._inventory.get(variant_id)

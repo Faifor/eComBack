@@ -27,6 +27,7 @@ class ProductCreate(BaseModel):
     title: str
     category_id: int
     base_price: Decimal
+    description: str | None = None
 
 
 class ProductRead(BaseModel):
@@ -34,6 +35,7 @@ class ProductRead(BaseModel):
     title: str
     category_id: int
     base_price: Decimal
+    description: str | None = None
     images: list[ProductImageRead] = Field(default_factory=list)
     average_rating: float = 0.0
     reviews_count: int = 0
@@ -94,3 +96,9 @@ class ProductReviewRead(BaseModel):
     rating: int
     review: str
     created_at: datetime
+
+
+class ProductDetailsRead(ProductRead):
+    attributes: list[ProductAttributeRead] = Field(default_factory=list)
+    variants: list[ProductVariantRead] = Field(default_factory=list)
+    reviews: list[ProductReviewRead] = Field(default_factory=list)

@@ -256,3 +256,87 @@ def test_user_permissions_are_limited_to_storefront_actions(tmp_path: Path) -> N
     assert cart.status_code == 201
 
     app.dependency_overrides.clear()
+
+
+def test_admin_validations_and_product_details_endpoint(tmp_path: Path) -> None:
+    db_file = tmp_path / "integration_validations.db"
+    engine = create_engine(f"sqlite:///{db_file}", future=True)
+    sync_session.sync_engine = engine
+    sync_session.SyncSessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+    Base.metadata.create_all(bind=engine)
+
+    runtime.catalog_repository = SQLAlchemyCatalogRepository()
+    runtime.pricing_repository = SQLAlchemyPricingRepository()
+    runtime.pricing_service = DefaultPricingService(runtime.pricing_repository, runtime.catalog_repository)
+    admin_router._catalog_service = DefaultCatalogService(runtime.catalog_repository)
+
+    async def _fake_user():
+        return UserProfile(
+            id=1,
+            email="admin@example.com",
+            full_name="Admin",
+            phone=None,
+            role=UserRole.ADMIN,
+            hashed_password="x",
+            created_at=datetime.utcnow(),
+        )
+
+    app.dependency_overrides[get_current_user] = _fake_user
+    client = TestClient(app)
+
+    bad_category = client.post("/api/v1/admin/categories", json={"name": "   "})
+    assert bad_category.status_code == 422
+
+    category = client.post("/api/v1/admin/categories", json={"name": "Electronics"})
+    category_id = category.json()["id"]
+
+    bad_product_name = client.post("/api/v1/admin/products", json={"name": " ", "category_id": category_id})
+    assert bad_product_name.status_code == 422
+
+    bad_product_category = client.post("/api/v1/admin/products", json={"name": "Phone", "category_id": 0})
+    assert bad_product_category.status_code == 422
+
+    product = client.post(
+        "/api/v1/admin/products",
+        json={"name": "Phone", "category_id": category_id, "description": "Great phone"},
+    )
+    assert product.status_code == 201
+    product_id = product.json()["id"]
+
+    update_description = client.put(
+        f"/api/v1/admin/products/{product_id}/description",
+        json={"description": "Updated description"},
+    )
+    assert update_description.status_code == 200
+    assert update_description.json()["description"] == "Updated description"
+
+    bad_sku = client.post("/api/v1/admin/skus", json={"product_id": 0, "sku": ""})
+    assert bad_sku.status_code == 422
+
+    sku = client.post("/api/v1/admin/skus", json={"product_id": product_id, "sku": "PHN-1"})
+    assert sku.status_code == 201
+    variant_id = sku.json()["id"]
+
+    bad_inventory = client.post("/api/v1/admin/inventory", json={"sku_id": variant_id})
+    assert bad_inventory.status_code == 422
+
+    inventory = client.post("/api/v1/admin/inventory", json={"sku_id": variant_id, "stock": 3})
+    assert inventory.status_code == 201
+
+    bad_bulk_prices = client.post("/api/v1/admin/bulk/sku-prices", json=[{"sku": "", "price": 0}])
+    assert bad_bulk_prices.status_code == 422
+
+    client.post("/api/v1/catalog/attributes", json={"product_id": product_id, "name": "color", "value": "black"})
+    client.post(f"/api/v1/catalog/products/{product_id}/reviews", json={"user_id": 99, "rating": 4, "review": "Good"})
+
+    details = client.get(f"/api/v1/catalog/products/{product_id}")
+    assert details.status_code == 200
+    payload = details.json()
+    assert payload["description"] == "Updated description"
+    assert payload["reviews_count"] == 1
+    assert payload["average_rating"] == 4.0
+    assert payload["reviews"]
+    assert payload["variants"]
+    assert payload["attributes"]
+
+    app.dependency_overrides.clear()
