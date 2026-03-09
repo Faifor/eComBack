@@ -42,6 +42,11 @@ alembic downgrade -1
 alembic revision --autogenerate -m "message"
 ```
 
+
+## API documentation
+
+Structured API docs (without AI module, with duplicate-handling strategy): `docs/api.md`.
+
 ## Примеры curl
 
 ### Регистрация
