@@ -1,11 +1,17 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 
+from app.modules.auth.dependencies import require_role
+from app.modules.auth.models.entity import UserRole
 from app.modules.cart.schemas.dto import CartCreate, CartItemUpsert, CartRead
 from app.modules.cart.services.service import DefaultCartService
 from app.modules.runtime import cart_repository, catalog_repository, pricing_service
 
 
-router = APIRouter(prefix="/cart", tags=["cart"])
+router = APIRouter(
+    prefix="/cart",
+    tags=["cart"],
+    dependencies=[Depends(require_role(UserRole.USER, UserRole.ADMIN))],
+)
 _service = DefaultCartService(cart_repository, catalog_repository, pricing_service)
 
 
