@@ -1,7 +1,7 @@
 from __future__ import annotations
 from datetime import datetime
 from decimal import Decimal
-from sqlalchemy import and_, select
+from sqlalchemy import and_, delete, select
 
 from app.db.commerce_models import (
     CommerceAttribute,
@@ -11,6 +11,7 @@ from app.db.commerce_models import (
     CommerceProduct,
     CommerceProductImage,
     CommerceProductReview,
+    CommercePricingRule,
     CommerceVariant,
 )
 from app.db import sync_session
@@ -76,6 +77,19 @@ class SQLAlchemyCatalogRepository(CatalogRepository):
             row = db.get(CommerceCategory, category_id)
             return self._category(row) if row else None
 
+    def delete_category(self, category_id: int) -> None:
+        with sync_session.SyncSessionLocal() as db:
+            category = db.get(CommerceCategory, category_id)
+            if category is None:
+                raise ValueError("category not found")
+
+            has_products = db.scalar(select(CommerceProduct.id).where(CommerceProduct.category_id == category_id).limit(1))
+            if has_products is not None:
+                raise ValueError("category has products")
+
+            db.delete(category)
+            db.commit()
+
     def create_product(self, title: str, category_id: int, base_price: Decimal, description: str | None = None) -> Product:
         with sync_session.SyncSessionLocal() as db:
             row = CommerceProduct(title=title, category_id=category_id, base_price=base_price, description=description)
@@ -92,6 +106,28 @@ class SQLAlchemyCatalogRepository(CatalogRepository):
     def list_products(self) -> list[Product]:
         with sync_session.SyncSessionLocal() as db:
             return [self._product(r) for r in db.scalars(select(CommerceProduct)).all()]
+
+    def delete_product(self, product_id: int) -> None:
+        with sync_session.SyncSessionLocal() as db:
+            product = db.get(CommerceProduct, product_id)
+            if product is None:
+                raise ValueError("product not found")
+
+            variant_ids = db.scalars(select(CommerceVariant.id).where(CommerceVariant.product_id == product_id)).all()
+
+            db.execute(delete(CommerceProductImage).where(CommerceProductImage.product_id == product_id))
+            db.execute(delete(CommerceProductReview).where(CommerceProductReview.product_id == product_id))
+            db.execute(delete(CommerceAttribute).where(CommerceAttribute.product_id == product_id))
+            db.execute(delete(CommercePricingRule).where(CommercePricingRule.product_id == product_id))
+
+            if variant_ids:
+                db.execute(delete(CommercePricingRule).where(CommercePricingRule.variant_id.in_(variant_ids)))
+                db.execute(delete(CommerceInventoryMovement).where(CommerceInventoryMovement.sku_id.in_(variant_ids)))
+                db.execute(delete(CommerceInventory).where(CommerceInventory.variant_id.in_(variant_ids)))
+                db.execute(delete(CommerceVariant).where(CommerceVariant.id.in_(variant_ids)))
+
+            db.delete(product)
+            db.commit()
 
     def create_variant(self, product_id: int, sku: str, title: str, base_price: Decimal | None) -> ProductVariant:
         with sync_session.SyncSessionLocal() as db:

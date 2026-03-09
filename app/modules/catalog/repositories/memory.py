@@ -52,6 +52,13 @@ class InMemoryCatalogRepository(CatalogRepository):
 
     def get_category(self, category_id: int) -> Category | None:
         return self._categories.get(category_id)
+
+    def delete_category(self, category_id: int) -> None:
+        if category_id not in self._categories:
+            raise ValueError("category not found")
+        if any(product.category_id == category_id for product in self._products.values()):
+            raise ValueError("category has products")
+        del self._categories[category_id]
     
     def create_product(self, title: str, category_id: int, base_price: Decimal, description: str | None = None) -> Product:
         item = Product(id=self._next_id("product"), title=title, category_id=category_id, base_price=base_price, description=description)
@@ -63,6 +70,31 @@ class InMemoryCatalogRepository(CatalogRepository):
 
     def list_products(self) -> list[Product]:
         return list(self._products.values())
+
+    def delete_product(self, product_id: int) -> None:
+        if product_id not in self._products:
+            raise ValueError("product not found")
+        del self._products[product_id]
+
+        variant_ids = [variant.id for variant in self._variants.values() if variant.product_id == product_id]
+        self._variants = {variant_id: variant for variant_id, variant in self._variants.items() if variant.product_id != product_id}
+        self._inventory = {variant_id: inventory for variant_id, inventory in self._inventory.items() if variant_id not in variant_ids}
+        self._movements = [movement for movement in self._movements if movement.sku_id not in variant_ids]
+        self._attributes = {
+            attribute_id: attribute
+            for attribute_id, attribute in self._attributes.items()
+            if attribute.product_id != product_id
+        }
+        self._images = {
+            image_id: image
+            for image_id, image in self._images.items()
+            if image.product_id != product_id
+        }
+        self._reviews = {
+            review_id: review
+            for review_id, review in self._reviews.items()
+            if review.product_id != product_id
+        }
 
     def create_variant(self, product_id: int, sku: str, title: str, base_price: Decimal | None) -> ProductVariant:
         item = ProductVariant(id=self._next_id("variant"), product_id=product_id, sku=sku, title=title, base_price=base_price)

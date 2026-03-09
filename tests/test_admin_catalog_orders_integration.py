@@ -5,11 +5,12 @@ import io
 from pathlib import Path
 
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
 from app.db.base import Base
 from app.db import sync_session
+from app.db.commerce_models import CommerceAttribute, CommerceInventory, CommerceProductImage, CommerceProductReview, CommerceVariant
 from app.main import app
 from app.modules.auth.dependencies import get_current_user
 from app.modules.auth.models.entity import UserRole
@@ -338,5 +339,80 @@ def test_admin_validations_and_product_details_endpoint(tmp_path: Path) -> None:
     assert payload["reviews"]
     assert payload["variants"]
     assert payload["attributes"]
+
+    app.dependency_overrides.clear()
+
+
+def test_admin_can_delete_category_and_product_with_rules(tmp_path: Path) -> None:
+    db_file = tmp_path / "integration_delete.db"
+    engine = create_engine(f"sqlite:///{db_file}", future=True)
+    sync_session.sync_engine = engine
+    sync_session.SyncSessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+    Base.metadata.create_all(bind=engine)
+
+    runtime.catalog_repository = SQLAlchemyCatalogRepository()
+    runtime.pricing_repository = SQLAlchemyPricingRepository()
+    runtime.pricing_service = DefaultPricingService(runtime.pricing_repository, runtime.catalog_repository)
+    admin_router._catalog_service = DefaultCatalogService(runtime.catalog_repository)
+
+    async def _fake_user():
+        return UserProfile(
+            id=1,
+            email="admin@example.com",
+            full_name="Admin",
+            phone=None,
+            role=UserRole.ADMIN,
+            hashed_password="x",
+            created_at=datetime.utcnow(),
+        )
+
+    app.dependency_overrides[get_current_user] = _fake_user
+    client = TestClient(app)
+
+    category = client.post("/api/v1/admin/categories", json={"name": "Delete me"})
+    assert category.status_code == 201
+    category_id = category.json()["id"]
+
+    product = client.post("/api/v1/admin/products", json={"name": "Disposable", "category_id": category_id})
+    assert product.status_code == 201
+    product_id = product.json()["id"]
+
+    variant = client.post("/api/v1/admin/skus", json={"product_id": product_id, "sku": "DEL-1"})
+    assert variant.status_code == 201
+    variant_id = variant.json()["id"]
+
+    inventory = client.post("/api/v1/admin/inventory", json={"sku_id": variant_id, "stock": 4})
+    assert inventory.status_code == 201
+
+    image_upload = client.post(
+        f"/api/v1/admin/products/{product_id}/images",
+        files=[("files", ("test.jpg", io.BytesIO(b"x"), "image/jpeg"))],
+    )
+    assert image_upload.status_code == 201
+
+    review = client.post(
+        f"/api/v1/catalog/products/{product_id}/reviews",
+        json={"user_id": 10, "rating": 5, "review": "great"},
+    )
+    assert review.status_code == 201
+
+    category_delete_with_products = client.delete(f"/api/v1/admin/categories/{category_id}")
+    assert category_delete_with_products.status_code == 409
+
+    product_delete = client.delete(f"/api/v1/admin/products/{product_id}")
+    assert product_delete.status_code == 204
+
+    with sync_session.SyncSessionLocal() as db:
+        assert db.scalar(select(CommerceVariant.id).where(CommerceVariant.product_id == product_id)) is None
+        assert db.scalar(select(CommerceInventory.id).where(CommerceInventory.variant_id == variant_id)) is None
+        assert db.scalar(select(CommerceAttribute.id).where(CommerceAttribute.product_id == product_id)) is None
+        assert db.scalar(select(CommerceProductImage.id).where(CommerceProductImage.product_id == product_id)) is None
+        assert db.scalar(select(CommerceProductReview.id).where(CommerceProductReview.product_id == product_id)) is None
+
+    category_delete = client.delete(f"/api/v1/admin/categories/{category_id}")
+    assert category_delete.status_code == 204
+
+    product_delete_again = client.delete(f"/api/v1/admin/products/{product_id}")
+    assert product_delete_again.status_code == 404
 
     app.dependency_overrides.clear()

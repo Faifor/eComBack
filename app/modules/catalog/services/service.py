@@ -31,6 +31,9 @@ class DefaultCatalogService(CatalogService):
     def list_categories(self) -> list[CategoryRead]:
         return [CategoryRead.model_validate(c.__dict__) for c in self._repository.list_categories()]
 
+    def delete_category(self, category_id: int) -> None:
+        self._repository.delete_category(category_id)
+
     def create_product(self, payload: ProductCreate) -> ProductRead:
         if self._repository.get_category(payload.category_id) is None:
             raise ValueError("category not found")
@@ -47,6 +50,9 @@ class DefaultCatalogService(CatalogService):
             payload.reviews_count = summary.reviews_count
             products.append(payload)
         return products
+
+    def delete_product(self, product_id: int) -> None:
+        self._repository.delete_product(product_id)
 
 
     def get_product_details(self, product_id: int) -> ProductDetailsRead:

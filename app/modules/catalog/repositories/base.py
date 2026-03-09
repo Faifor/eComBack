@@ -26,6 +26,9 @@ class CatalogRepository(ABC):
     def get_category(self, category_id: int) -> Category | None: ...
 
     @abstractmethod
+    def delete_category(self, category_id: int) -> None: ...
+
+    @abstractmethod
     def create_product(self, title: str, category_id: int, base_price: Decimal, description: str | None = None) -> Product: ...
 
     @abstractmethod
@@ -33,6 +36,9 @@ class CatalogRepository(ABC):
 
     @abstractmethod
     def list_products(self) -> list[Product]: ...
+
+    @abstractmethod
+    def delete_product(self, product_id: int) -> None: ...
 
     @abstractmethod
     def create_variant(self, product_id: int, sku: str, title: str, base_price: Decimal | None) -> ProductVariant: ...
