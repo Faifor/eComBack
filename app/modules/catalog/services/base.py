@@ -6,8 +6,11 @@ from app.modules.catalog.schemas.dto import (
     InventorySet,
     ProductAttributeCreate,
     ProductAttributeRead,
+    ProductImageRead,
     ProductCreate,
     ProductRead,
+    ProductReviewCreate,
+    ProductReviewRead,
     ProductVariantCreate,
     ProductVariantRead,
 )
@@ -37,3 +40,12 @@ class CatalogService(ABC):
 
     @abstractmethod
     def add_attribute(self, payload: ProductAttributeCreate) -> ProductAttributeRead: ...
+
+    @abstractmethod
+    def add_product_image(self, product_id: int, image_url: str, is_primary: bool = False, sort_order: int = 0) -> ProductImageRead: ...
+
+    @abstractmethod
+    def add_review(self, product_id: int, payload: ProductReviewCreate) -> ProductReviewRead: ...
+
+    @abstractmethod
+    def list_reviews(self, product_id: int) -> list[ProductReviewRead]: ...

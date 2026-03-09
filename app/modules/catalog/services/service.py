@@ -6,8 +6,11 @@ from app.modules.catalog.schemas.dto import (
     InventorySet,
     ProductAttributeCreate,
     ProductAttributeRead,
+    ProductImageRead,
     ProductCreate,
     ProductRead,
+    ProductReviewCreate,
+    ProductReviewRead,
     ProductVariantCreate,
     ProductVariantRead,
 )
@@ -34,7 +37,15 @@ class DefaultCatalogService(CatalogService):
         return ProductRead.model_validate(p.__dict__)
 
     def list_products(self) -> list[ProductRead]:
-        return [ProductRead.model_validate(p.__dict__) for p in self._repository.list_products()]
+        products: list[ProductRead] = []
+        for product in self._repository.list_products():
+            payload = ProductRead.model_validate(product.__dict__)
+            payload.images = [ProductImageRead.model_validate(image.__dict__) for image in self._repository.list_product_images(product.id)]
+            summary = self._repository.get_product_rating_summary(product.id)
+            payload.average_rating = summary.average_rating
+            payload.reviews_count = summary.reviews_count
+            products.append(payload)
+        return products
 
     def create_variant(self, payload: ProductVariantCreate) -> ProductVariantRead:
         if self._repository.get_product(payload.product_id) is None:
@@ -59,3 +70,20 @@ class DefaultCatalogService(CatalogService):
             raise ValueError("product not found")
         attr = self._repository.add_attribute(payload.product_id, payload.name, payload.value)
         return ProductAttributeRead.model_validate(attr.__dict__)
+
+    def add_product_image(self, product_id: int, image_url: str, is_primary: bool = False, sort_order: int = 0) -> ProductImageRead:
+        if self._repository.get_product(product_id) is None:
+            raise ValueError("product not found")
+        image = self._repository.add_product_image(product_id, image_url, is_primary, sort_order)
+        return ProductImageRead.model_validate(image.__dict__)
+
+    def add_review(self, product_id: int, payload: ProductReviewCreate) -> ProductReviewRead:
+        if self._repository.get_product(product_id) is None:
+            raise ValueError("product not found")
+        review = self._repository.add_product_review(product_id, payload.user_id, payload.rating, payload.review)
+        return ProductReviewRead.model_validate(review.__dict__)
+
+    def list_reviews(self, product_id: int) -> list[ProductReviewRead]:
+        if self._repository.get_product(product_id) is None:
+            raise ValueError("product not found")
+        return [ProductReviewRead.model_validate(review.__dict__) for review in self._repository.list_product_reviews(product_id)]

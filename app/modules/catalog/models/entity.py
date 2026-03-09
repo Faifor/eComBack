@@ -20,6 +20,32 @@ class Product:
 
 
 @dataclass
+class ProductImage:
+    id: int
+    product_id: int
+    image_url: str
+    is_primary: bool = False
+    sort_order: int = 0
+    created_at: datetime | None = None
+
+
+@dataclass
+class ProductReview:
+    id: int
+    product_id: int
+    user_id: int
+    rating: int
+    review: str
+    created_at: datetime
+
+
+@dataclass
+class ProductRatingSummary:
+    average_rating: float
+    reviews_count: int
+
+
+@dataclass
 class ProductVariant:
     id: int
     product_id: int
