@@ -8,6 +8,7 @@ from app.modules.catalog.schemas.dto import (
     ProductAttributeRead,
     ProductImageRead,
     ProductCreate,
+    ProductDetailsRead,
     ProductRead,
     ProductReviewCreate,
     ProductReviewRead,
@@ -49,3 +50,6 @@ class CatalogService(ABC):
 
     @abstractmethod
     def list_reviews(self, product_id: int) -> list[ProductReviewRead]: ...
+
+    @abstractmethod
+    def get_product_details(self, product_id: int) -> ProductDetailsRead: ...

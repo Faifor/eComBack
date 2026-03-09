@@ -43,6 +43,7 @@ from app.modules.admin.schemas.dto import (
     PricingRuleCreate,
     PricingRuleRead,
     ProductCreate,
+    ProductDescriptionUpdate,
     ProductRead,
     ReportFilters,
     RetentionLtvReport,
@@ -85,16 +86,30 @@ def list_categories() -> list[CategoryRead]:
 @router.post("/products", response_model=ProductRead, status_code=status.HTTP_201_CREATED)
 def create_product(payload: ProductCreate) -> ProductRead:
     item = _catalog_service.create_product(
-        CatalogProductCreate(title=payload.name, category_id=payload.category_id, base_price=Decimal("0.00"))
+        CatalogProductCreate(title=payload.name, category_id=payload.category_id, base_price=Decimal("0.00"), description=payload.description)
     )
-    return ProductRead(id=item.id, name=item.title, category_id=item.category_id, external_key=payload.external_key)
+    return ProductRead(id=item.id, name=item.title, category_id=item.category_id, external_key=payload.external_key, description=item.description)
 
 @router.get("/products", response_model=list[ProductRead])
 def list_products() -> list[ProductRead]:
     return [
-        ProductRead(id=item.id, name=item.title, category_id=item.category_id, external_key=None)
+        ProductRead(id=item.id, name=item.title, category_id=item.category_id, external_key=None, description=item.description)
         for item in _catalog_service.list_products()
     ]
+
+
+
+
+@router.put("/products/{product_id}/description", response_model=ProductRead)
+def update_product_description(product_id: int, payload: ProductDescriptionUpdate) -> ProductRead:
+    with sync_session.SyncSessionLocal() as db:
+        product = db.get(CommerceProduct, product_id)
+        if product is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="product not found")
+        product.description = payload.description
+        db.commit()
+        db.refresh(product)
+        return ProductRead(id=product.id, name=product.title, category_id=product.category_id, external_key=None, description=product.description)
 
 
 @router.post("/products/{product_id}/images", response_model=list[ProductImageRead], status_code=status.HTTP_201_CREATED)
@@ -129,7 +144,7 @@ def create_sku(payload: SKUCreate) -> SKURead:
     item = _catalog_service.create_variant(
         ProductVariantCreate(product_id=payload.product_id, sku=payload.sku, title=payload.sku, base_price=None)
     )
-    return SKURead(id=item.id, product_id=item.product_id, sku=item.sku, attributes=payload.attributes)
+    return SKURead(id=item.id, product_id=item.product_id, sku=item.sku, attributes=payload.attributes or {})
 
 
 @router.get("/skus", response_model=list[SKURead])

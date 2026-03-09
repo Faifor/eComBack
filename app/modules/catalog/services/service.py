@@ -8,6 +8,7 @@ from app.modules.catalog.schemas.dto import (
     ProductAttributeRead,
     ProductImageRead,
     ProductCreate,
+    ProductDetailsRead,
     ProductRead,
     ProductReviewCreate,
     ProductReviewRead,
@@ -33,7 +34,7 @@ class DefaultCatalogService(CatalogService):
     def create_product(self, payload: ProductCreate) -> ProductRead:
         if self._repository.get_category(payload.category_id) is None:
             raise ValueError("category not found")
-        p = self._repository.create_product(payload.title, payload.category_id, payload.base_price)
+        p = self._repository.create_product(payload.title, payload.category_id, payload.base_price, payload.description)
         return ProductRead.model_validate(p.__dict__)
 
     def list_products(self) -> list[ProductRead]:
@@ -46,6 +47,21 @@ class DefaultCatalogService(CatalogService):
             payload.reviews_count = summary.reviews_count
             products.append(payload)
         return products
+
+
+    def get_product_details(self, product_id: int) -> ProductDetailsRead:
+        product = self._repository.get_product(product_id)
+        if product is None:
+            raise ValueError("product not found")
+        payload = ProductDetailsRead.model_validate(product.__dict__)
+        payload.images = [ProductImageRead.model_validate(image.__dict__) for image in self._repository.list_product_images(product_id)]
+        payload.attributes = [ProductAttributeRead.model_validate(attr.__dict__) for attr in self._repository.list_attributes(product_id)]
+        payload.variants = [ProductVariantRead.model_validate(variant.__dict__) for variant in self._repository.list_variants_by_product(product_id)]
+        payload.reviews = [ProductReviewRead.model_validate(review.__dict__) for review in self._repository.list_product_reviews(product_id)]
+        summary = self._repository.get_product_rating_summary(product_id)
+        payload.average_rating = summary.average_rating
+        payload.reviews_count = summary.reviews_count
+        return payload
 
     def create_variant(self, payload: ProductVariantCreate) -> ProductVariantRead:
         if self._repository.get_product(payload.product_id) is None:

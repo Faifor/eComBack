@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel, Field
-from typing import Literal
+from pydantic import BaseModel, Field, StringConstraints
+from typing import Annotated, Literal
 
 
 class CategoryCreate(BaseModel):
-    name: str
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
     external_key: str | None = None
 
 
@@ -23,9 +23,10 @@ class CategoryRead(BaseModel):
 
 
 class ProductCreate(BaseModel):
-    name: str
-    category_id: int
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+    category_id: int = Field(gt=0)
     external_key: str | None = None
+    description: str | None = None
 
 
 class ProductUpdate(BaseModel):
@@ -39,12 +40,17 @@ class ProductRead(BaseModel):
     name: str
     category_id: int
     external_key: str | None = None
+    description: str | None = None
+
+
+class ProductDescriptionUpdate(BaseModel):
+    description: str
 
 
 class SKUCreate(BaseModel):
-    product_id: int
-    sku: str
-    attributes: dict[str, str] = Field(default_factory=dict)
+    product_id: int = Field(gt=0)
+    sku: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+    attributes: dict[str, str] | None = None
 
 
 class SKUUpdate(BaseModel):
@@ -61,8 +67,8 @@ class SKURead(BaseModel):
 
 
 class InventoryCreate(BaseModel):
-    sku_id: int
-    stock: int
+    sku_id: int = Field(gt=0)
+    stock: int = Field(ge=0)
 
 
 class InventoryUpdate(BaseModel):
@@ -162,17 +168,17 @@ class ImportReport(BaseModel):
 
 
 class BulkPriceUpdateItem(BaseModel):
-    sku: str
+    sku: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
     price: float = Field(gt=0)
 
 
 class BulkStockUpdateItem(BaseModel):
-    sku: str
+    sku: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
     stock: int = Field(ge=0)
 
 
 class BulkStatusUpdateItem(BaseModel):
-    sku: str
+    sku: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
     status: Literal["active", "inactive", "archived"]
 
 

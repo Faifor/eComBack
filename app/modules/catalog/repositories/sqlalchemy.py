@@ -36,7 +36,7 @@ class SQLAlchemyCatalogRepository(CatalogRepository):
 
     @staticmethod
     def _product(row: CommerceProduct) -> Product:
-        return Product(id=row.id, title=row.title, category_id=row.category_id, base_price=row.base_price, is_active=row.is_active)
+        return Product(id=row.id, title=row.title, category_id=row.category_id, base_price=row.base_price, is_active=row.is_active, description=row.description)
 
     @staticmethod
     def _variant(row: CommerceVariant) -> ProductVariant:
@@ -76,9 +76,9 @@ class SQLAlchemyCatalogRepository(CatalogRepository):
             row = db.get(CommerceCategory, category_id)
             return self._category(row) if row else None
 
-    def create_product(self, title: str, category_id: int, base_price: Decimal) -> Product:
+    def create_product(self, title: str, category_id: int, base_price: Decimal, description: str | None = None) -> Product:
         with sync_session.SyncSessionLocal() as db:
-            row = CommerceProduct(title=title, category_id=category_id, base_price=base_price)
+            row = CommerceProduct(title=title, category_id=category_id, base_price=base_price, description=description)
             db.add(row)
             db.commit()
             db.refresh(row)
@@ -110,6 +110,12 @@ class SQLAlchemyCatalogRepository(CatalogRepository):
         with sync_session.SyncSessionLocal() as db:
             row = db.scalar(select(CommerceVariant).where(CommerceVariant.sku == sku))
             return self._variant(row) if row else None
+
+
+    def list_variants_by_product(self, product_id: int) -> list[ProductVariant]:
+        with sync_session.SyncSessionLocal() as db:
+            rows = db.scalars(select(CommerceVariant).where(CommerceVariant.product_id == product_id)).all()
+            return [self._variant(row) for row in rows]
 
     def set_inventory(self, variant_id: int, qty: int) -> Inventory:
         with sync_session.SyncSessionLocal() as db:

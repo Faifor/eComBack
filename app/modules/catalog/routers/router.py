@@ -10,6 +10,7 @@ from app.modules.catalog.schemas.dto import (
     ProductAttributeRead,
     ProductImageRead,
     ProductCreate,
+    ProductDetailsRead,
     ProductRead,
     ProductReviewCreate,
     ProductReviewRead,
@@ -64,6 +65,16 @@ def create_product(payload: ProductCreate) -> ProductRead:
 @router.get("/products", response_model=list[ProductRead])
 def list_products() -> list[ProductRead]:
     return _service.list_products()
+
+
+
+
+@router.get("/products/{product_id}", response_model=ProductDetailsRead)
+def get_product_details(product_id: int) -> ProductDetailsRead:
+    try:
+        return _service.get_product_details(product_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
 
 @router.post(

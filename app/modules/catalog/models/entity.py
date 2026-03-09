@@ -17,6 +17,7 @@ class Product:
     category_id: int
     base_price: Decimal
     is_active: bool = True
+    description: str | None = None
 
 
 @dataclass
