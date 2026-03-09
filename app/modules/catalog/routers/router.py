@@ -34,6 +34,7 @@ _service = DefaultCatalogService(catalog_repository)
     response_model=CategoryRead,
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(require_role(UserRole.ADMIN))],
+    include_in_schema=False,
 )
 def create_category(payload: CategoryCreate) -> CategoryRead:
     try:
@@ -51,6 +52,7 @@ def list_categories() -> list[CategoryRead]:
     response_model=ProductRead,
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(require_role(UserRole.ADMIN))],
+    include_in_schema=False,
 )
 def create_product(payload: ProductCreate) -> ProductRead:
     try:
@@ -69,6 +71,7 @@ def list_products() -> list[ProductRead]:
     response_model=ProductVariantRead,
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(require_role(UserRole.ADMIN))],
+    include_in_schema=False,
 )
 def create_variant(payload: ProductVariantCreate) -> ProductVariantRead:
     try:
@@ -77,7 +80,12 @@ def create_variant(payload: ProductVariantCreate) -> ProductVariantRead:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
 
-@router.put("/inventory", response_model=InventoryRead, dependencies=[Depends(require_role(UserRole.ADMIN))])
+@router.put(
+    "/inventory",
+    response_model=InventoryRead,
+    dependencies=[Depends(require_role(UserRole.ADMIN))],
+    include_in_schema=False,
+)
 def set_inventory(payload: InventorySet) -> InventoryRead:
     try:
         return _service.set_inventory(payload)
@@ -90,6 +98,7 @@ def set_inventory(payload: InventorySet) -> InventoryRead:
     response_model=ProductAttributeRead,
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(require_role(UserRole.ADMIN))],
+    include_in_schema=False,
 )
 def add_attribute(payload: ProductAttributeCreate) -> ProductAttributeRead:
     try:

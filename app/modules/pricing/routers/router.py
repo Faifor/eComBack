@@ -18,17 +18,17 @@ router = APIRouter(
 )
 
 
-@router.post("/rules", response_model=PricingRuleRead, status_code=status.HTTP_201_CREATED)
+@router.post("/rules", response_model=PricingRuleRead, status_code=status.HTTP_201_CREATED, include_in_schema=False)
 def create_rule(payload: PricingRuleCreate) -> PricingRuleRead:
     return pricing_service.create_rule(payload)
 
 
-@router.get("/rules", response_model=list[PricingRuleRead])
+@router.get("/rules", response_model=list[PricingRuleRead], include_in_schema=False)
 def list_rules() -> list[PricingRuleRead]:
     return pricing_service.list_rules()
 
 
-@router.post("/calculate", response_model=PriceCalculateResponse)
+@router.post("/calculate", response_model=PriceCalculateResponse, include_in_schema=False)
 def calculate(payload: PriceCalculateRequest) -> PriceCalculateResponse:
     try:
         return pricing_service.calculate_price(payload)
