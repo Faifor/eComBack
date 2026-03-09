@@ -203,3 +203,56 @@ def test_admin_import_modes_bulk_and_idempotency(tmp_path: Path) -> None:
     assert status_bulk.json()["updated"] == 1
 
     app.dependency_overrides.clear()
+
+
+def test_user_permissions_are_limited_to_storefront_actions(tmp_path: Path) -> None:
+    db_file = tmp_path / "integration_permissions.db"
+    engine = create_engine(f"sqlite:///{db_file}", future=True)
+    sync_session.sync_engine = engine
+    sync_session.SyncSessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+    Base.metadata.create_all(bind=engine)
+
+    runtime.catalog_repository = SQLAlchemyCatalogRepository()
+    runtime.pricing_repository = SQLAlchemyPricingRepository()
+    runtime.cart_repository = InMemoryCartRepository()
+    runtime.orders_repository = SQLAlchemyOrdersRepository()
+    runtime.pricing_service = DefaultPricingService(runtime.pricing_repository, runtime.catalog_repository)
+
+    cart_router._service = DefaultCartService(runtime.cart_repository, runtime.catalog_repository, runtime.pricing_service)
+
+    class DummyYooKassaClient:
+        async def create_payment_intent(self, amount, idempotence_key: str, description: str):
+            return {"id": "dummy", "status": "pending"}
+
+    orders_router._service = DefaultOrdersService(
+        runtime.orders_repository, runtime.cart_repository, DummyYooKassaClient(), runtime.catalog_repository
+    )
+    admin_router._catalog_service = DefaultCatalogService(runtime.catalog_repository)
+
+    async def _fake_user():
+        return UserProfile(
+            id=7,
+            email="user@example.com",
+            full_name="User",
+            phone=None,
+            role=UserRole.USER,
+            hashed_password="x",
+            created_at=datetime.utcnow(),
+        )
+
+    app.dependency_overrides[get_current_user] = _fake_user
+    client = TestClient(app)
+
+    admin_create = client.post("/api/v1/admin/categories", json={"name": "Forbidden"})
+    assert admin_create.status_code == 403
+
+    catalog_create = client.post("/api/v1/catalog/categories", json={"name": "Forbidden"})
+    assert catalog_create.status_code == 403
+
+    catalog_read = client.get("/api/v1/catalog/products")
+    assert catalog_read.status_code == 200
+
+    cart = client.post("/api/v1/cart/", json={"user_id": 7})
+    assert cart.status_code == 201
+
+    app.dependency_overrides.clear()

@@ -8,7 +8,11 @@ from app.modules.payments.services.yookassa_client import YooKassaClient
 from app.modules.runtime import cart_repository, catalog_repository, orders_repository
 
 
-router = APIRouter(prefix="/orders", tags=["orders"])
+router = APIRouter(
+    prefix="/orders",
+    tags=["orders"],
+    dependencies=[Depends(require_role(UserRole.USER, UserRole.ADMIN))],
+)
 _service = DefaultOrdersService(orders_repository, cart_repository, YooKassaClient(), catalog_repository)
 
 
@@ -33,7 +37,7 @@ def get_order(order_id: int) -> OrderRead:
     return order
 
 
-@router.post("/{order_id}/status", response_model=OrderRead)
+@router.post("/{order_id}/status", response_model=OrderRead, dependencies=[Depends(require_role(UserRole.ADMIN))])
 def update_order_status(order_id: int, payload: OrderStatusUpdate) -> OrderRead:
     order = _service.transition_status(order_id, payload.status)
     if order is None:

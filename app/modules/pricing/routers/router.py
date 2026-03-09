@@ -1,5 +1,7 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 
+from app.modules.auth.dependencies import require_role
+from app.modules.auth.models.entity import UserRole
 from app.modules.pricing.schemas.dto import (
     PriceCalculateRequest,
     PriceCalculateResponse,
@@ -9,7 +11,11 @@ from app.modules.pricing.schemas.dto import (
 from app.modules.runtime import pricing_service
 
 
-router = APIRouter(prefix="/pricing", tags=["pricing"])
+router = APIRouter(
+    prefix="/pricing",
+    tags=["pricing"],
+    dependencies=[Depends(require_role(UserRole.ADMIN))],
+)
 
 
 @router.post("/rules", response_model=PricingRuleRead, status_code=status.HTTP_201_CREATED)
