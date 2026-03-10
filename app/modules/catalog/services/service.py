@@ -100,7 +100,10 @@ class DefaultCatalogService(CatalogService):
     def create_variant(self, payload: ProductVariantCreate) -> ProductVariantRead:
         if self._repository.get_product(payload.product_id) is None:
             raise ValueError("product not found")
-        if self._repository.get_variant_by_sku(payload.sku) is not None:
+        existing_variant = self._repository.get_variant_by_sku(payload.sku)
+        if existing_variant is not None:
+            if existing_variant.product_id == payload.product_id:
+                return ProductVariantRead.model_validate(existing_variant.__dict__)
             raise ValueError("sku already exists")
         v = self._repository.create_variant(payload.product_id, payload.sku, payload.title, payload.base_price)
         return ProductVariantRead.model_validate(v.__dict__)
