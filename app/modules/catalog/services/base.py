@@ -13,6 +13,7 @@ from app.modules.catalog.schemas.dto import (
     ProductReviewCreate,
     ProductReviewRead,
     ProductVariantCreate,
+    ProductVariantDetailsRead,
     ProductVariantRead,
 )
 
@@ -46,6 +47,9 @@ class CatalogService(ABC):
 
     @abstractmethod
     def create_variant(self, payload: ProductVariantCreate) -> ProductVariantRead: ...
+
+    @abstractmethod
+    def get_variant_details(self, variant_id: int) -> ProductVariantDetailsRead: ...
 
     @abstractmethod
     def set_inventory(self, payload: InventorySet) -> InventoryRead: ...
