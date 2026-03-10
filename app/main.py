@@ -1,5 +1,9 @@
+import os
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.api.v1.router import router as api_v1_router
 from app.core.errors import add_exception_handlers
@@ -33,3 +37,7 @@ app.add_middleware(
 add_exception_handlers(app)
 
 app.include_router(api_v1_router)
+
+media_root = Path(os.getenv("MEDIA_ROOT", "media"))
+media_root.mkdir(parents=True, exist_ok=True)
+app.mount("/media", StaticFiles(directory=media_root), name="media")
