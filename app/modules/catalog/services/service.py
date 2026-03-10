@@ -40,7 +40,15 @@ class DefaultCatalogService(CatalogService):
         p = self._repository.create_product(payload.title, payload.category_id, payload.base_price, payload.description)
         return ProductRead.model_validate(p.__dict__)
 
-    def list_products(self) -> list[ProductRead]:
+    def list_products(
+        self,
+        category_id: int | None = None,
+        min_price: float | None = None,
+        max_price: float | None = None,
+        q: str | None = None,
+        sort_by: str = "id",
+        sort_order: str = "asc",
+    ) -> list[ProductRead]:
         products: list[ProductRead] = []
         for product in self._repository.list_products():
             payload = ProductRead.model_validate(product.__dict__)
@@ -49,7 +57,27 @@ class DefaultCatalogService(CatalogService):
             payload.average_rating = summary.average_rating
             payload.reviews_count = summary.reviews_count
             products.append(payload)
-        return products
+
+        if category_id is not None:
+            products = [item for item in products if item.category_id == category_id]
+        if min_price is not None:
+            products = [item for item in products if float(item.base_price) >= min_price]
+        if max_price is not None:
+            products = [item for item in products if float(item.base_price) <= max_price]
+        if q:
+            query = q.lower()
+            products = [item for item in products if query in item.title.lower()]
+
+        reverse = sort_order == "desc"
+        sort_key_map = {
+            "id": lambda item: item.id,
+            "title": lambda item: item.title.lower(),
+            "base_price": lambda item: float(item.base_price),
+            "average_rating": lambda item: item.average_rating,
+            "reviews_count": lambda item: item.reviews_count,
+        }
+        key = sort_key_map.get(sort_by, sort_key_map["id"])
+        return sorted(products, key=key, reverse=reverse)
 
     def delete_product(self, product_id: int) -> None:
         self._repository.delete_product(product_id)

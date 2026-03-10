@@ -299,7 +299,7 @@ def test_admin_validations_and_product_details_endpoint(tmp_path: Path) -> None:
 
     product = client.post(
         "/api/v1/admin/products",
-        json={"name": "Phone", "category_id": category_id, "description": "Great phone"},
+        json={"name": "Phone", "category_id": category_id, "description": "Great phone", "base_price": "120000.00"},
     )
     assert product.status_code == 201
     product_id = product.json()["id"]
@@ -339,6 +339,25 @@ def test_admin_validations_and_product_details_endpoint(tmp_path: Path) -> None:
     assert payload["reviews"]
     assert payload["variants"]
     assert payload["attributes"]
+    variants = client.get(f"/api/v1/catalog/products/{product_id}/variants")
+    assert variants.status_code == 200
+    assert len(variants.json()) == 1
+
+    second_product = client.post(
+        "/api/v1/admin/products",
+        json={"name": "Budget Phone", "category_id": category_id, "base_price": "50000.00"},
+    )
+    assert second_product.status_code == 201
+
+    filtered = client.get("/api/v1/catalog/products", params={"min_price": 100000, "sort_by": "base_price", "sort_order": "desc"})
+    assert filtered.status_code == 200
+    filtered_payload = filtered.json()
+    assert len(filtered_payload) == 1
+    assert filtered_payload[0]["title"] == "Phone"
+
+    search = client.get("/api/v1/catalog/products", params={"q": "budget"})
+    assert search.status_code == 200
+    assert len(search.json()) == 1
 
     app.dependency_overrides.clear()
 

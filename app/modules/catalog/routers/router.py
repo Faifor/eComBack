@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from app.modules.auth.dependencies import require_role
 from app.modules.auth.models.entity import UserRole
 from app.modules.catalog.schemas.dto import (
@@ -63,10 +63,34 @@ def create_product(payload: ProductCreate) -> ProductRead:
 
 
 @router.get("/products", response_model=list[ProductRead])
-def list_products() -> list[ProductRead]:
-    return _service.list_products()
+def list_products(
+    category_id: int | None = Query(default=None, gt=0),
+    min_price: float | None = Query(default=None, ge=0),
+    max_price: float | None = Query(default=None, ge=0),
+    q: str | None = None,
+    sort_by: str = Query(default="id", pattern="^(id|title|base_price|average_rating|reviews_count)$"),
+    sort_order: str = Query(default="asc", pattern="^(asc|desc)$"),
+) -> list[ProductRead]:
+    return _service.list_products(
+        category_id=category_id,
+        min_price=min_price,
+        max_price=max_price,
+        q=q,
+        sort_by=sort_by,
+        sort_order=sort_order,
+    )
 
 
+
+
+
+@router.get("/products/{product_id}/variants", response_model=list[ProductVariantRead])
+def list_product_variants(product_id: int) -> list[ProductVariantRead]:
+    try:
+        details = _service.get_product_details(product_id)
+        return details.variants
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
 
 @router.get("/products/{product_id}", response_model=ProductDetailsRead)
