@@ -54,6 +54,7 @@ class ProductVariantRead(BaseModel):
     sku: str
     title: str
     base_price: Decimal | None = None
+    attributes: list["ProductAttributeRead"] = Field(default_factory=list)
 
 
 class InventorySet(BaseModel):

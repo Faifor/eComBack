@@ -58,6 +58,7 @@ from app.modules.auth.models.entity import UserRole
 from app.modules.catalog.schemas.dto import (
     CategoryCreate as CatalogCategoryCreate,
     InventorySet,
+    ProductAttributeCreate,
     ProductImageRead,
     ProductCreate as CatalogProductCreate,
     ProductVariantCreate,
@@ -171,7 +172,13 @@ def create_sku(payload: SKUCreate) -> SKURead:
         if str(exc) == "sku already exists":
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-    return SKURead(id=item.id, product_id=item.product_id, sku=item.sku, attributes=payload.attributes or {})
+
+    attributes = payload.attributes or {}
+    for name, value in attributes.items():
+        _catalog_service.add_attribute(
+            ProductAttributeCreate(product_id=item.product_id, variant_id=item.id, name=name, value=str(value))
+        )
+    return SKURead(id=item.id, product_id=item.product_id, sku=item.sku, attributes=attributes)
 
 
 @router.get("/skus", response_model=list[SKURead])
