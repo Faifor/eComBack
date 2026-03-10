@@ -85,6 +85,11 @@ class ProductAttributeRead(BaseModel):
     value: str
 
 
+class ProductVariantDetailsRead(ProductVariantRead):
+    attributes: list[ProductAttributeRead] = Field(default_factory=list)
+    inventory: InventoryRead | None = None
+
+
 class ProductReviewCreate(BaseModel):
     user_id: int
     rating: int = Field(ge=1, le=5)
