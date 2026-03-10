@@ -331,7 +331,12 @@ def test_admin_validations_and_product_details_endpoint(tmp_path: Path) -> None:
     bad_bulk_prices = client.post("/api/v1/admin/bulk/sku-prices", json=[{"sku": "", "price": 0}])
     assert bad_bulk_prices.status_code == 422
 
-    client.post("/api/v1/catalog/attributes", json={"product_id": product_id, "name": "color", "value": "black"})
+    attr = client.post(
+        "/api/v1/catalog/attributes",
+        json={"product_id": product_id, "variant_id": variant_id, "name": "color", "value": "black"},
+    )
+    assert attr.status_code == 201
+    assert attr.json()["variant_id"] == variant_id
     client.post(f"/api/v1/catalog/products/{product_id}/reviews", json={"user_id": 99, "rating": 4, "review": "Good"})
 
     details = client.get(f"/api/v1/catalog/products/{product_id}")
@@ -343,6 +348,7 @@ def test_admin_validations_and_product_details_endpoint(tmp_path: Path) -> None:
     assert payload["reviews"]
     assert payload["variants"]
     assert payload["attributes"]
+    assert payload["attributes"][0]["variant_id"] == variant_id
     variants = client.get(f"/api/v1/catalog/products/{product_id}/variants")
     assert variants.status_code == 200
     assert len(variants.json()) == 1

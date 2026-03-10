@@ -118,7 +118,13 @@ class DefaultCatalogService(CatalogService):
     def add_attribute(self, payload: ProductAttributeCreate) -> ProductAttributeRead:
         if self._repository.get_product(payload.product_id) is None:
             raise ValueError("product not found")
-        attr = self._repository.add_attribute(payload.product_id, payload.name, payload.value)
+        if payload.variant_id is not None:
+            variant = self._repository.get_variant(payload.variant_id)
+            if variant is None:
+                raise ValueError("variant not found")
+            if variant.product_id != payload.product_id:
+                raise ValueError("variant does not belong to product")
+        attr = self._repository.add_attribute(payload.product_id, payload.name, payload.value, payload.variant_id)
         return ProductAttributeRead.model_validate(attr.__dict__)
 
     def add_product_image(self, product_id: int, image_url: str, is_primary: bool = False, sort_order: int = 0) -> ProductImageRead:

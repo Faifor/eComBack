@@ -132,8 +132,14 @@ class InMemoryCatalogRepository(CatalogRepository):
         on_hand, reserved, available = self.inventory_summary(variant_id)
         return Inventory(id=raw.id, variant_id=raw.variant_id, qty=raw.qty, on_hand=on_hand, reserved=reserved, available=available)
 
-    def add_attribute(self, product_id: int, name: str, value: str) -> ProductAttribute:
-        item = ProductAttribute(id=self._next_id("attribute"), product_id=product_id, name=name, value=value)
+    def add_attribute(self, product_id: int, name: str, value: str, variant_id: int | None = None) -> ProductAttribute:
+        item = ProductAttribute(
+            id=self._next_id("attribute"),
+            product_id=product_id,
+            variant_id=variant_id,
+            name=name,
+            value=value,
+        )
         self._attributes[item.id] = item
         return item
 
