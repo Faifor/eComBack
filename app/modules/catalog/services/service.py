@@ -90,8 +90,12 @@ class DefaultCatalogService(CatalogService):
             raise ValueError("product not found")
         payload = ProductDetailsRead.model_validate(product.__dict__)
         payload.images = [ProductImageRead.model_validate(image.__dict__) for image in self._repository.list_product_images(product_id)]
-        payload.attributes = [ProductAttributeRead.model_validate(attr.__dict__) for attr in self._repository.list_attributes(product_id)]
-        payload.variants = [ProductVariantRead.model_validate(variant.__dict__) for variant in self._repository.list_variants_by_product(product_id)]
+        attributes = [ProductAttributeRead.model_validate(attr.__dict__) for attr in self._repository.list_attributes(product_id)]
+        variants = [ProductVariantRead.model_validate(variant.__dict__) for variant in self._repository.list_variants_by_product(product_id)]
+        for variant in variants:
+            variant.attributes = [attr for attr in attributes if attr.variant_id == variant.id]
+        payload.attributes = [attr for attr in attributes if attr.variant_id is None]
+        payload.variants = variants
         payload.reviews = [ProductReviewRead.model_validate(review.__dict__) for review in self._repository.list_product_reviews(product_id)]
         summary = self._repository.get_product_rating_summary(product_id)
         payload.average_rating = summary.average_rating

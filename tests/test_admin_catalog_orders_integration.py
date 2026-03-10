@@ -76,9 +76,13 @@ def test_admin_created_product_visible_in_catalog_and_checkout(tmp_path: Path) -
     assert product.status_code == 201
     product_id = product.json()["id"]
 
-    sku = client.post("/api/v1/admin/skus", json={"product_id": product_id, "sku": "RUN-42", "attributes": {}})
+    sku = client.post("/api/v1/admin/skus", json={"product_id": product_id, "sku": "RUN-42", "attributes": {"size": "42"}})
     assert sku.status_code == 201
     variant_id = sku.json()["id"]
+
+    variant_details = client.get(f"/api/v1/catalog/variants/{variant_id}")
+    assert variant_details.status_code == 200
+    assert variant_details.json()["attributes"][0]["name"] == "size"
 
     inventory = client.post("/api/v1/admin/inventory", json={"sku_id": variant_id, "stock": 5})
     assert inventory.status_code == 201
@@ -359,8 +363,9 @@ def test_admin_validations_and_product_details_endpoint(tmp_path: Path) -> None:
     assert payload["average_rating"] == 4.0
     assert payload["reviews"]
     assert payload["variants"]
-    assert payload["attributes"]
-    assert payload["attributes"][0]["variant_id"] == variant_id
+    assert payload["attributes"] == []
+    assert payload["variants"][0]["attributes"]
+    assert payload["variants"][0]["attributes"][0]["variant_id"] == variant_id
     variants = client.get(f"/api/v1/catalog/products/{product_id}/variants")
     assert variants.status_code == 200
     assert len(variants.json()) == 1
