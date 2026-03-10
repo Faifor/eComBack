@@ -365,6 +365,14 @@ def test_admin_validations_and_product_details_endpoint(tmp_path: Path) -> None:
     assert variants.status_code == 200
     assert len(variants.json()) == 1
 
+    variant_details = client.get(f"/api/v1/catalog/variants/{variant_id}")
+    assert variant_details.status_code == 200
+    variant_payload = variant_details.json()
+    assert variant_payload["id"] == variant_id
+    assert variant_payload["attributes"]
+    assert variant_payload["attributes"][0]["name"] == "color"
+    assert variant_payload["inventory"]["qty"] == 3
+
     second_product = client.post(
         "/api/v1/admin/products",
         json={"name": "Budget Phone", "category_id": category_id, "base_price": "50000.00"},

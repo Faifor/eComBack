@@ -13,6 +13,7 @@ from app.modules.catalog.schemas.dto import (
     ProductReviewCreate,
     ProductReviewRead,
     ProductVariantCreate,
+    ProductVariantDetailsRead,
     ProductVariantRead,
 )
 from app.modules.catalog.services.base import CatalogService
@@ -107,6 +108,20 @@ class DefaultCatalogService(CatalogService):
             raise ValueError("sku already exists")
         v = self._repository.create_variant(payload.product_id, payload.sku, payload.title, payload.base_price)
         return ProductVariantRead.model_validate(v.__dict__)
+
+
+    def get_variant_details(self, variant_id: int) -> ProductVariantDetailsRead:
+        variant = self._repository.get_variant(variant_id)
+        if variant is None:
+            raise ValueError("variant not found")
+        payload = ProductVariantDetailsRead.model_validate(variant.__dict__)
+        payload.attributes = [
+            ProductAttributeRead.model_validate(attr.__dict__)
+            for attr in self._repository.list_attributes(variant.product_id)
+            if attr.variant_id == variant_id
+        ]
+        payload.inventory = self.get_inventory(variant_id)
+        return payload
 
     def set_inventory(self, payload: InventorySet) -> InventoryRead:
         if self._repository.get_variant(payload.variant_id) is None:

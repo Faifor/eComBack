@@ -15,6 +15,7 @@ from app.modules.catalog.schemas.dto import (
     ProductReviewCreate,
     ProductReviewRead,
     ProductVariantCreate,
+    ProductVariantDetailsRead,
     ProductVariantRead,
 )
 from app.modules.catalog.services.service import DefaultCatalogService
@@ -100,6 +101,15 @@ def get_product_details(product_id: int) -> ProductDetailsRead:
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
+
+
+
+@router.get("/variants/{variant_id}", response_model=ProductVariantDetailsRead)
+def get_variant_details(variant_id: int) -> ProductVariantDetailsRead:
+    try:
+        return _service.get_variant_details(variant_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
 @router.post(
     "/variants",
