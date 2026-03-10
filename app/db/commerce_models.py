@@ -63,6 +63,7 @@ class CommerceAttribute(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     product_id: Mapped[int] = mapped_column(ForeignKey("commerce_products.id", ondelete="CASCADE"), nullable=False)
+    variant_id: Mapped[int | None] = mapped_column(ForeignKey("commerce_variants.id", ondelete="CASCADE"), nullable=True)
     name: Mapped[str] = mapped_column(String(128), nullable=False)
     value: Mapped[str] = mapped_column(Text(), nullable=False)
 

@@ -90,5 +90,6 @@ class InventoryMovement:
 class ProductAttribute:
     id: int
     product_id: int
+    variant_id: int | None
     name: str
     value: str

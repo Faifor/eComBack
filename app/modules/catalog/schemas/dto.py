@@ -72,6 +72,7 @@ class InventoryRead(BaseModel):
 
 class ProductAttributeCreate(BaseModel):
     product_id: int
+    variant_id: int | None = None
     name: str
     value: str
 
@@ -79,6 +80,7 @@ class ProductAttributeCreate(BaseModel):
 class ProductAttributeRead(BaseModel):
     id: int
     product_id: int
+    variant_id: int | None = None
     name: str
     value: str
 

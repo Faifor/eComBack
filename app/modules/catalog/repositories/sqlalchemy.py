@@ -183,18 +183,21 @@ class SQLAlchemyCatalogRepository(CatalogRepository):
             row = db.scalar(select(CommerceInventory).where(CommerceInventory.variant_id == variant_id))
             return self._inventory(row) if row else None
 
-    def add_attribute(self, product_id: int, name: str, value: str) -> ProductAttribute:
+    def add_attribute(self, product_id: int, name: str, value: str, variant_id: int | None = None) -> ProductAttribute:
         with sync_session.SyncSessionLocal() as db:
-            row = CommerceAttribute(product_id=product_id, name=name, value=value)
+            row = CommerceAttribute(product_id=product_id, variant_id=variant_id, name=name, value=value)
             db.add(row)
             db.commit()
             db.refresh(row)
-            return ProductAttribute(id=row.id, product_id=row.product_id, name=row.name, value=row.value)
+            return ProductAttribute(id=row.id, product_id=row.product_id, variant_id=row.variant_id, name=row.name, value=row.value)
 
     def list_attributes(self, product_id: int) -> list[ProductAttribute]:
         with sync_session.SyncSessionLocal() as db:
             rows = db.scalars(select(CommerceAttribute).where(CommerceAttribute.product_id == product_id)).all()
-            return [ProductAttribute(id=r.id, product_id=r.product_id, name=r.name, value=r.value) for r in rows]
+            return [
+                ProductAttribute(id=r.id, product_id=r.product_id, variant_id=r.variant_id, name=r.name, value=r.value)
+                for r in rows
+            ]
 
     def add_inventory_movement(
         self,
