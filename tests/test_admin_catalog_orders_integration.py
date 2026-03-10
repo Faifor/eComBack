@@ -319,8 +319,20 @@ def test_admin_validations_and_product_details_endpoint(tmp_path: Path) -> None:
     variant_id = sku.json()["id"]
 
     duplicate_sku = client.post("/api/v1/admin/skus", json={"product_id": product_id, "sku": "PHN-1"})
-    assert duplicate_sku.status_code == 409
-    assert duplicate_sku.json()["detail"] == "sku already exists"
+    assert duplicate_sku.status_code == 201
+    assert duplicate_sku.json()["id"] == variant_id
+
+    second_product = client.post(
+        "/api/v1/admin/products",
+        json={"name": "Phone Mini", "category_id": category_id, "description": "Compact phone", "base_price": "90000.00"},
+    )
+    assert second_product.status_code == 201
+
+    cross_product_duplicate_sku = client.post(
+        "/api/v1/admin/skus", json={"product_id": second_product.json()["id"], "sku": "PHN-1"}
+    )
+    assert cross_product_duplicate_sku.status_code == 409
+    assert cross_product_duplicate_sku.json()["detail"] == "sku already exists"
 
     bad_inventory = client.post("/api/v1/admin/inventory", json={"sku_id": variant_id})
     assert bad_inventory.status_code == 422
