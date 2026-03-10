@@ -31,7 +31,15 @@ class CatalogService(ABC):
     def create_product(self, payload: ProductCreate) -> ProductRead: ...
 
     @abstractmethod
-    def list_products(self) -> list[ProductRead]: ...
+    def list_products(
+        self,
+        category_id: int | None = None,
+        min_price: float | None = None,
+        max_price: float | None = None,
+        q: str | None = None,
+        sort_by: str = "id",
+        sort_order: str = "asc",
+    ) -> list[ProductRead]: ...
 
     @abstractmethod
     def delete_product(self, product_id: int) -> None: ...

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from decimal import Decimal
 
 from pydantic import BaseModel, Field, StringConstraints
 from typing import Annotated, Literal
@@ -25,6 +26,7 @@ class CategoryRead(BaseModel):
 class ProductCreate(BaseModel):
     name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
     category_id: int = Field(gt=0)
+    base_price: Decimal = Field(default=Decimal("0.00"), ge=0)
     external_key: str | None = None
     description: str | None = None
 

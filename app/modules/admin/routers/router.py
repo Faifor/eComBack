@@ -97,7 +97,7 @@ def delete_category(category_id: int) -> Response:
 @router.post("/products", response_model=ProductRead, status_code=status.HTTP_201_CREATED)
 def create_product(payload: ProductCreate) -> ProductRead:
     item = _catalog_service.create_product(
-        CatalogProductCreate(title=payload.name, category_id=payload.category_id, base_price=Decimal("0.00"), description=payload.description)
+        CatalogProductCreate(title=payload.name, category_id=payload.category_id, base_price=payload.base_price, description=payload.description)
     )
     return ProductRead(id=item.id, name=item.title, category_id=item.category_id, external_key=payload.external_key, description=item.description)
 
