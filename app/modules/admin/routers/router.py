@@ -161,9 +161,16 @@ def upload_product_images(product_id: int, files: list[UploadFile] = File(...)) 
 
 @router.post("/skus", response_model=SKURead, status_code=status.HTTP_201_CREATED)
 def create_sku(payload: SKUCreate) -> SKURead:
-    item = _catalog_service.create_variant(
-        ProductVariantCreate(product_id=payload.product_id, sku=payload.sku, title=payload.sku, base_price=None)
-    )
+    try:
+        item = _catalog_service.create_variant(
+            ProductVariantCreate(product_id=payload.product_id, sku=payload.sku, title=payload.sku, base_price=None)
+        )
+    except ValueError as exc:
+        if str(exc) == "product not found":
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        if str(exc) == "sku already exists":
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     return SKURead(id=item.id, product_id=item.product_id, sku=item.sku, attributes=payload.attributes or {})
 
 
