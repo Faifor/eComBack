@@ -318,6 +318,10 @@ def test_admin_validations_and_product_details_endpoint(tmp_path: Path) -> None:
     assert sku.status_code == 201
     variant_id = sku.json()["id"]
 
+    duplicate_sku = client.post("/api/v1/admin/skus", json={"product_id": product_id, "sku": "PHN-1"})
+    assert duplicate_sku.status_code == 409
+    assert duplicate_sku.json()["detail"] == "sku already exists"
+
     bad_inventory = client.post("/api/v1/admin/inventory", json={"sku_id": variant_id})
     assert bad_inventory.status_code == 422
 
